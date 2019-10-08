@@ -136,10 +136,10 @@ public class ApiSource {
 
     @Parameter
     private List<String> modelConverters;
-    
+
     @Parameter
     private boolean skipInheritingClasses = false;
-    
+
     @Parameter
     private String operationIdFormat;
 
@@ -149,16 +149,19 @@ public class ApiSource {
     @Parameter
     private List<ResponseMessageOverride> responseMessageOverrides;
 
+    @Parameter
+    private NginxConfig nginxConfig;
+
     public Set<Class<?>> getValidClasses(Class<? extends Annotation> clazz) {
         Set<Class<?>> classes = new LinkedHashSet<Class<?>>();
-        
+
         List<String> prefixes = new ArrayList<String>();
         if (getLocations() == null) {
             prefixes.add("");
         } else {
             prefixes.addAll(getLocations());
         }
-        
+
         for (String location : prefixes) {
             Set<Class<?>> c = new Reflections(location).getTypesAnnotatedWith(clazz, true);
             classes.addAll(c);
