@@ -1,6 +1,7 @@
 package com.github.kongchen.swagger.docgen.mavenplugin;
 
 import com.github.kongchen.swagger.docgen.AbstractDocumentSource;
+import com.github.kongchen.swagger.docgen.nginx.NginxJaxrsReader;
 import com.github.kongchen.swagger.docgen.reader.JaxrsReader;
 import com.google.common.collect.Sets;
 import org.apache.maven.plugin.MojoFailureException;
@@ -28,6 +29,6 @@ public class MavenDocumentSource extends AbstractDocumentSource<JaxrsReader> {
 
     @Override
     protected JaxrsReader createReader() {
-        return new JaxrsReader(swagger, LOG);
+        return new NginxJaxrsReader(swagger, apiSource.getNginxConfig(), LOG);
     }
 }

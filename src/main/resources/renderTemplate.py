@@ -1,9 +1,10 @@
 import django
-from django.conf import settings
 from django import template
+from django.conf import settings
 
 settings.configure()
 django.setup()
+
 
 def renderTemplate(t, ctx):
     t = template.Template(t)

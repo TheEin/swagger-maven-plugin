@@ -15,7 +15,11 @@ import org.springframework.core.annotation.AnnotationUtils;
 
 import java.io.File;
 import java.lang.annotation.Annotation;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * User: kongchen
@@ -397,14 +401,14 @@ public class ApiSource {
     }
 
     public List<String> getSwaggerExtensions() {
-		return swaggerExtensions;
-	}
+        return swaggerExtensions;
+    }
 
-	public void setSwaggerExtensions(List<String> swaggerExtensions) {
-		this.swaggerExtensions = swaggerExtensions;
-	}
+    public void setSwaggerExtensions(List<String> swaggerExtensions) {
+        this.swaggerExtensions = swaggerExtensions;
+    }
 
-	public String getApiSortComparator() {
+    public String getApiSortComparator() {
         return apiSortComparator;
     }
 
@@ -485,14 +489,14 @@ public class ApiSource {
     }
 
     public String getOperationIdFormat() {
-		return operationIdFormat;
-	}
+        return operationIdFormat;
+    }
 
-	public void setOperationIdFormat(String operationIdFormat) {
-		this.operationIdFormat = operationIdFormat;
-	}
+    public void setOperationIdFormat(String operationIdFormat) {
+        this.operationIdFormat = operationIdFormat;
+    }
 
-	private String emptyToNull(String str) {
+    private String emptyToNull(String str) {
         return StringUtils.isEmpty(str) ? null : str;
     }
 
@@ -502,6 +506,14 @@ public class ApiSource {
 
     public void setRemoveBasePathFromEndpoints(Boolean removeBasePathFromEndpoints) {
         this.removeBasePathFromEndpoints = removeBasePathFromEndpoints;
+    }
+
+    public NginxConfig getNginxConfig() {
+        return nginxConfig;
+    }
+
+    public void setNginxConfig(NginxConfig nginxConfig) {
+        this.nginxConfig = nginxConfig;
     }
 }
 

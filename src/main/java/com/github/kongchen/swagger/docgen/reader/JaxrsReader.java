@@ -2,38 +2,6 @@ package com.github.kongchen.swagger.docgen.reader;
 
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.As;
-import io.swagger.models.properties.StringProperty;
-import java.lang.annotation.Annotation;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
-import javax.ws.rs.Consumes;
-import javax.ws.rs.DELETE;
-import javax.ws.rs.GET;
-import javax.ws.rs.HEAD;
-import javax.ws.rs.HttpMethod;
-import javax.ws.rs.OPTIONS;
-import javax.ws.rs.POST;
-import javax.ws.rs.PUT;
-import javax.ws.rs.Path;
-import javax.ws.rs.Produces;
-
-import org.apache.commons.lang3.StringUtils;
-import org.apache.maven.plugin.logging.Log;
-import org.reflections.Reflections;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.core.annotation.AnnotationUtils;
-
 import com.github.kongchen.swagger.docgen.jaxrs.BeanParamInjectParamExtension;
 import com.github.kongchen.swagger.docgen.jaxrs.JaxrsParameterExtension;
 import io.swagger.annotations.Api;
@@ -59,15 +27,45 @@ import io.swagger.models.parameters.Parameter;
 import io.swagger.models.parameters.RefParameter;
 import io.swagger.models.properties.Property;
 import io.swagger.models.properties.RefProperty;
+import io.swagger.models.properties.StringProperty;
 import io.swagger.models.refs.RefType;
 import io.swagger.util.BaseReaderUtils;
 import io.swagger.util.ReflectionUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.maven.plugin.logging.Log;
+import org.reflections.Reflections;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.core.annotation.AnnotationUtils;
+
+import javax.ws.rs.Consumes;
+import javax.ws.rs.DELETE;
+import javax.ws.rs.GET;
+import javax.ws.rs.HEAD;
+import javax.ws.rs.HttpMethod;
+import javax.ws.rs.OPTIONS;
+import javax.ws.rs.POST;
+import javax.ws.rs.PUT;
+import javax.ws.rs.Path;
+import javax.ws.rs.Produces;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 public class JaxrsReader extends AbstractReader implements ClassSwaggerReader {
     private static final Logger LOGGER = LoggerFactory.getLogger(JaxrsReader.class);
     private static final ResponseContainerConverter RESPONSE_CONTAINER_CONVERTER = new ResponseContainerConverter();
 
-  public JaxrsReader(Swagger swagger, Log LOG) {
+    public JaxrsReader(Swagger swagger, Log LOG) {
         super(swagger, LOG);
     }
 
@@ -97,7 +95,7 @@ public class JaxrsReader extends AbstractReader implements ClassSwaggerReader {
     }
 
     protected Swagger read(Class<?> cls, String parentPath, String parentMethod, boolean readHidden, String[] parentConsumes,
-            String[] parentProduces, Map<String, Tag> parentTags, List<Parameter> parentParameters) {
+                           String[] parentProduces, Map<String, Tag> parentTags, List<Parameter> parentParameters) {
         if (swagger == null) {
             swagger = new Swagger();
         }
@@ -132,11 +130,11 @@ public class JaxrsReader extends AbstractReader implements ClassSwaggerReader {
 
             String parentPathValue = String.valueOf(parentPath);
             //is method default handler within a subresource
-            if(apiPath == null && methodPath == null && parentPath != null && readHidden){
+            if (apiPath == null && methodPath == null && parentPath != null && readHidden) {
                 final String updatedMethodPath = String.valueOf(parentPath);
-                Path path = new Path(){
+                Path path = new Path() {
                     @Override
-                    public String value(){
+                    public String value() {
                         return updatedMethodPath;
                     }
 
@@ -202,7 +200,7 @@ public class JaxrsReader extends AbstractReader implements ClassSwaggerReader {
     /**
      * Returns true when the swagger object already contains a common parameter
      * with the same name and type as the passed parameter.
-     * 
+     *
      * @param parameter The parameter to check.
      * @return true if the swagger object already contains a common parameter with the same name and type
      */
@@ -238,7 +236,7 @@ public class JaxrsReader extends AbstractReader implements ClassSwaggerReader {
                 for (Parameter param : params) {
                     if (hasCommonParameter(param)) {
                         String msg = "[" + cls.getCanonicalName() + "] Redefining common parameter '" + param.getName()
-                            + "' already defined elsewhere";
+                                + "' already defined elsewhere";
                         throw new RuntimeException(msg);
                     }
                     swagger.addParameter(param.getName(), param);
@@ -260,14 +258,14 @@ public class JaxrsReader extends AbstractReader implements ClassSwaggerReader {
 
     private Map<String, Tag> scanClasspathForTags() {
         Map<String, Tag> tags = new HashMap<>();
-        for (Class<?> aClass: new Reflections("").getTypesAnnotatedWith(SwaggerDefinition.class)) {
+        for (Class<?> aClass : new Reflections("").getTypesAnnotatedWith(SwaggerDefinition.class)) {
             SwaggerDefinition swaggerDefinition = AnnotationUtils.findAnnotation(aClass, SwaggerDefinition.class);
 
             for (io.swagger.annotations.Tag tag : swaggerDefinition.tags()) {
 
                 String tagName = tag.name();
                 if (!tagName.isEmpty()) {
-                  tags.put(tag.name(), new Tag().name(tag.name()).description(tag.description()));
+                    tags.put(tag.name(), new Tag().name(tag.name()).description(tag.description()));
                 }
             }
         }
@@ -495,7 +493,7 @@ public class JaxrsReader extends AbstractReader implements ClassSwaggerReader {
         Annotation[][] paramAnnotation = method.getParameterAnnotations();
 
         Method overriddenMethod = ReflectionUtils.getOverriddenMethod(method);
-        while(overriddenMethod != null) {
+        while (overriddenMethod != null) {
             paramAnnotation = merge(overriddenMethod.getParameterAnnotations(), paramAnnotation);
             overriddenMethod = ReflectionUtils.getOverriddenMethod(overriddenMethod);
         }
@@ -504,17 +502,17 @@ public class JaxrsReader extends AbstractReader implements ClassSwaggerReader {
 
 
     private static Annotation[][] merge(Annotation[][] overriddenMethodParamAnnotation,
-            Annotation[][] currentParamAnnotations) {
+                                        Annotation[][] currentParamAnnotations) {
         Annotation[][] mergedAnnotations = new Annotation[overriddenMethodParamAnnotation.length][];
 
-        for(int i=0; i<overriddenMethodParamAnnotation.length; i++) {
+        for (int i = 0; i < overriddenMethodParamAnnotation.length; i++) {
             mergedAnnotations[i] = merge(overriddenMethodParamAnnotation[i], currentParamAnnotations[i]);
         }
         return mergedAnnotations;
     }
 
     private static Annotation[] merge(Annotation[] annotations,
-            Annotation[] annotations2) {
+                                      Annotation[] annotations2) {
         List<Annotation> mergedAnnotations = new ArrayList<>();
         mergedAnnotations.addAll(Arrays.asList(annotations));
         mergedAnnotations.addAll(Arrays.asList(annotations2));
@@ -593,7 +591,7 @@ public class JaxrsReader extends AbstractReader implements ClassSwaggerReader {
             for (Type type : actualTypes) {
                 handleJsonTypeInfo(type, modelMap);
             }
-        } else if (responseClassType instanceof Class<?>){
+        } else if (responseClassType instanceof Class<?>) {
             Class<?> responseClass = ((Class<?>) responseClassType);
             if (responseClass.isArray()) {
                 responseClass = responseClass.getComponentType();

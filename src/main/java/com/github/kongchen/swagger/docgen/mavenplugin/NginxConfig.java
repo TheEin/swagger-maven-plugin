@@ -2,16 +2,22 @@ package com.github.kongchen.swagger.docgen.mavenplugin;
 
 import org.apache.maven.plugins.annotations.Parameter;
 
-import java.util.List;
-
 /**
  * nginx specific options
  */
 public class NginxConfig {
 
     /**
-     * Paths to nginx configurations containing location rewrite rules
+     * Path to <b>nginx.conf</b>
      */
     @Parameter(required = true)
-    private List<String> locations;
+    private String location;
+
+    public String getLocation() {
+        return location;
+    }
+
+    public void setLocation(String location) {
+        this.location = location;
+    }
 }
