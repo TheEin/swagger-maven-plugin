@@ -8,10 +8,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.LinkedList;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Resolves imports
@@ -24,7 +28,13 @@ public class NginxBlockResolver<T extends NgxBlock> {
 
     private static final String INCLUDE = "include";
 
+    private static final Pattern ABSOLUTE_PATH = Pattern.compile("^(/|[A-Z]:\\\\)");
+
+    private static final Pattern RELATIVE_PATH = Pattern.compile("(.*[/\\\\])([^/\\\\]+)$");
+
     private final NginxConfigReader reader;
+
+    private final Path dir;
 
     private final T block;
 
@@ -32,13 +42,14 @@ public class NginxBlockResolver<T extends NgxBlock> {
 
     private Deque<NginxBlockIterator<NgxBlock>> steps = new LinkedList<>();
 
-    public NginxBlockResolver(NginxConfigReader reader, T block) {
+    public NginxBlockResolver(NginxConfigReader reader, Path dir, T block) {
         this.reader = reader;
+        this.dir = dir;
         this.block = block;
-        iterator = new NginxBlockIterator<>(block);
     }
 
     public T resolve() throws IOException {
+        iterator = new NginxBlockIterator<>(block);
         do {
             while (iterator.hasNext()) {
                 NgxEntry entry = iterator.next();
@@ -49,6 +60,7 @@ public class NginxBlockResolver<T extends NgxBlock> {
                     param((NgxParam) entry);
                 }
             }
+            iterator.close();
             iterator = steps.poll();
         } while (iterator != null);
         return block;
@@ -61,26 +73,36 @@ public class NginxBlockResolver<T extends NgxBlock> {
     }
 
     private void include(String value) throws IOException {
-        Path path = Paths.get(value);
-        if (path.isAbsolute()) {
+        if (ABSOLUTE_PATH.matcher(value).find()) {
             LOGGER.debug("Removing absolute include directive: {}", value);
             iterator.remove();
         } else {
+            Matcher matcher = RELATIVE_PATH.matcher(value);
+            if (!matcher.matches()) {
+                throw new IOException("Failed to match relative path: " + value);
+            }
             LOGGER.debug("Resolving relative include directive: {}", value);
-            NgxConfig config = reader.read(path.toAbsolutePath().toString());
-            NginxBlockResolver<NgxBlock> resolver = new NginxBlockResolver<>(reader, config);
-            iterator.replace(resolver.resolve());
+            String relative = matcher.group(1);
+            String filter = matcher.group(2);
+            try (DirectoryStream<Path> paths = Files.newDirectoryStream(dir.resolve(relative), filter)) {
+                ArrayList<NgxConfig> includes = new ArrayList<>();
+                for (Path path : paths) {
+                    NgxConfig config = reader.read(path.toString());
+                    NginxBlockResolver<NgxConfig> resolver = new NginxBlockResolver<>(reader, path.getParent(), config);
+                    includes.add(resolver.resolve());
+                }
+                if (includes.isEmpty()) {
+                    LOGGER.warn("None files matched: {}/{}", dir, value);
+                    iterator.remove();
+                } else if (includes.size() == 1) {
+                    iterator.replace(includes.get(0));
+                } else {
+                    NgxBlock includesBlock = new NgxBlock();
+                    includesBlock.addValue(INCLUDE);
+                    includes.forEach(includesBlock::addEntry);
+                    iterator.replace(includesBlock);
+                }
+            }
         }
-    }
-
-    private static class Step<T extends NgxBlock> {
-
-        public Step(Step<NgxBlock> parent, NginxBlockIterator<T> iterator) {
-            this.parent = parent;
-            this.iterator = iterator;
-        }
-
-        Step<NgxBlock> parent;
-        NginxBlockIterator<T> iterator;
     }
 }

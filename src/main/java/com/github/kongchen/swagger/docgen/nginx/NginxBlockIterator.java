@@ -51,10 +51,7 @@ public class NginxBlockIterator<T extends NgxBlock> implements Iterator<NgxEntry
     @Override
     public void close() {
         if (replacement != null) {
-            Iterator<NgxEntry> it = block.getEntries().iterator();
-            while (it.hasNext()) {
-                it.remove();
-            }
+            block.getEntries().clear();
             replacement.stream()
                     .filter(Objects::nonNull)
                     .forEachOrdered(block::addEntry);
