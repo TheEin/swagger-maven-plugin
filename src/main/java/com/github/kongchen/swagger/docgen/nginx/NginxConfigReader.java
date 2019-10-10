@@ -13,7 +13,7 @@ import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.Scanner;
 
-public class NginxConfigReader implements AutoCloseable {
+public class NginxConfigReader {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(NginxConfigReader.class);
 
@@ -55,10 +55,5 @@ public class NginxConfigReader implements AutoCloseable {
         } catch (IOException e) {
             throw new IOException("Failed to read config: " + path, e);
         }
-    }
-
-    @Override
-    public void close() {
-        djangoTemplate.close();
     }
 }
