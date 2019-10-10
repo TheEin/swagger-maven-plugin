@@ -20,6 +20,14 @@ public class NginxLocationRewriter {
 
     private static final String LOCATION = "location";
 
+    private static final String STRICT_MATCH = "=";
+    private static final String REGEX_MATCH = "~";
+    private static final String IREGEX_MATCH = "~*";
+
+    private static final String[] LOCATION_MATCH = {STRICT_MATCH, REGEX_MATCH, IREGEX_MATCH};
+
+    private static final String REWRITE = "rewrite";
+
     private static final String REQUEST_METHOD = "$request_method";
 
     private static final String EQUALS = "=";
@@ -39,6 +47,8 @@ public class NginxLocationRewriter {
     private String revertedPath;
 
     private NgxBlock location;
+
+    private String locationMatch;
 
     private Iterator<NgxEntry> locationIterator;
 
@@ -104,13 +114,42 @@ public class NginxLocationRewriter {
         if (block instanceof NgxIfBlock) {
             ifBlock((NgxIfBlock) block);
         } else if (name.equals(LOCATION)) {
-            if (locationIterator != null) {
-                LOGGER.debug("Parent location: {}", location);
-                LOGGER.debug("Nested location: {}", block);
-            }
-            location = block;
-            locationIterator = iterator;
+            location(block);
         }
+    }
+
+    private void location(NgxBlock location) {
+        if (locationIterator != null) {
+            LOGGER.debug("Parent location: {}", this.location);
+            LOGGER.debug("Nested location: {}", location);
+        }
+        this.location = location;
+        locationMatch = null;
+        locationIterator = iterator;
+        String url = identifyLocation();
+    }
+
+    private String identifyLocation() {
+        Iterator<String> args = location.getValues().iterator();
+        if (!args.hasNext()) {
+            throw new IllegalStateException("Useless location");
+        }
+        String arg = args.next();
+        for (String match : LOCATION_MATCH) {
+            if (arg.equals(match)) {
+                locationMatch = match;
+                if (!args.hasNext()) {
+                    throw new IllegalStateException("Useless location");
+                }
+                arg = args.next();
+                break;
+            }
+        }
+        StringBuilder url = new StringBuilder(arg);
+        while (args.hasNext()) {
+            url.append(args.next());
+        }
+        return url.toString();
     }
 
     private void ifBlock(NgxIfBlock block) {
@@ -118,11 +157,12 @@ public class NginxLocationRewriter {
         String op = null;
         String arg = null;
         try {
-            Iterator<String> it = block.getValues().iterator();
-            var = it.next();
-            op = it.next();
-            arg = it.next();
+            Iterator<String> args = block.getValues().iterator();
+            var = args.next();
+            op = args.next();
+            arg = args.next();
         } catch (NoSuchElementException ignore) {
+            // partial args
         }
         if (var == null) {
             throw new IllegalStateException("Useless if block");
@@ -144,5 +184,25 @@ public class NginxLocationRewriter {
     }
 
     private void param(NgxParam param) {
+        if (param.getName().equals(REWRITE)) {
+            rewrite(param);
+        }
+    }
+
+    private void rewrite(NgxParam rewrite) {
+        String regex = null;
+        String replace = null;
+        String opt = null;
+        try {
+            Iterator<String> args = rewrite.getValues().iterator();
+            regex = args.next();
+            replace = args.next();
+            opt = args.next();
+        } catch (NoSuchElementException ignore) {
+            // partial args
+        }
+        if (regex == null || replace == null) {
+            throw new IllegalStateException("Useless rewrite");
+        }
     }
 }
