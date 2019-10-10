@@ -6,6 +6,7 @@ import com.github.odiszapc.nginxparser.NgxEntry;
 import com.github.odiszapc.nginxparser.NgxIfBlock;
 import com.github.odiszapc.nginxparser.NgxParam;
 import io.swagger.models.Operation;
+import org.apache.commons.lang3.RandomUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -13,6 +14,8 @@ import java.util.Deque;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.NoSuchElementException;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class NginxLocationRewriter {
 
@@ -32,9 +35,19 @@ public class NginxLocationRewriter {
 
     private static final String EQUALS = "=";
 
+    private static final char LB = '(';
+    private static final char RB = ')';
+    private static final char VB = '|';
+
+    private static final String ID_REGEX = "\\d+";
+    private static final Pattern PATH_ID = Pattern.compile("\\{\\w+}");
+    private static final String ID_MARK = String.valueOf(RandomUtils.nextInt(1 << 30, Integer.MAX_VALUE));
+
     private final NgxConfig config;
 
-    private final String operationPath;
+    private final String path;
+
+    private final String markedPath;
 
     private final String httpMethod;
 
@@ -50,28 +63,31 @@ public class NginxLocationRewriter {
 
     private String locationMatch;
 
+    private String locationUrl;
+
     private Iterator<NgxEntry> locationIterator;
 
     private NgxBlock prefixLocation;
 
     private NgxBlock patternLocation;
 
-    public NginxLocationRewriter(NgxConfig config, String operationPath, String httpMethod, Operation operation) {
-        if (operationPath == null) {
+    public NginxLocationRewriter(NgxConfig config, String path, String httpMethod, Operation operation) {
+        if (path == null) {
             throw new NullPointerException("operationPath");
         }
         if (httpMethod == null) {
             throw new IllegalArgumentException("HTTP method can't be null");
         }
         this.config = config;
-        this.operationPath = operationPath;
+        this.path = path;
+        markedPath = PATH_ID.matcher(path).replaceAll(ID_MARK);
         this.httpMethod = httpMethod.toUpperCase();
         this.operation = operation;
     }
 
     public String revertPath() {
-        LOGGER.info("Reverting {} {}, operationId = {}", httpMethod, operationPath, operation.getOperationId());
-        revertedPath = operationPath;
+        LOGGER.info("Reverting {} {}, operationId = {}", httpMethod, path, operation.getOperationId());
+        revertedPath = path;
         iterator = config.iterator();
         do {
             while (iterator.hasNext()) {
@@ -125,11 +141,12 @@ public class NginxLocationRewriter {
         }
         this.location = location;
         locationMatch = null;
+        locationUrl = null;
         locationIterator = iterator;
-        String url = identifyLocation();
+        identifyLocation();
     }
 
-    private String identifyLocation() {
+    private void identifyLocation() {
         Iterator<String> args = location.getValues().iterator();
         if (!args.hasNext()) {
             throw new IllegalStateException("Useless location");
@@ -149,8 +166,47 @@ public class NginxLocationRewriter {
         while (args.hasNext()) {
             url.append(args.next());
         }
-        return url.toString();
+        locationUrl = url.toString().replace(ID_REGEX, ID_MARK);
     }
+
+/*
+    private void expandLocationUrls() {
+        List<String> done = new ArrayList<>();
+        while (!locationUrls.isEmpty()) {
+            String url = locationUrls.remove(locationUrls.size() - 1);
+            int lb = url.indexOf(LB);
+            if (lb < 0) {
+                done.add(url);
+                continue;
+            }
+            int rb;
+            List<Integer> vb = new ArrayList<>();
+            int deep = 0;
+            for (rb = lb + 1; rb < url.length(); ++rb) {
+                int c = url.charAt(rb);
+                if (c == RB) {
+                    --deep;
+                    if (deep < 0) {
+                        break;
+                    }
+                } else if (c == LB) {
+                    ++deep;
+                } else if (c == VB) {
+                    if (deep == 0) {
+                        vb.add(rb);
+                    }
+                }
+            }
+            if (rb == url.length()) {
+                throw new IllegalStateException("Unfinished group");
+            }
+            if (vb.isEmpty()) {
+                throw new IllegalStateException("Useless group");
+            }
+        }
+        locationUrls = done;
+    }
+*/
 
     private void ifBlock(NgxIfBlock block) {
         String var = null;
@@ -203,6 +259,10 @@ public class NginxLocationRewriter {
         }
         if (regex == null || replace == null) {
             throw new IllegalStateException("Useless rewrite");
+        }
+        Matcher matcher = Pattern.compile(regex).matcher(locationUrl);
+        if (matcher.matches()) {
+            LOGGER.info("Match: location = {}, rewrite = {}", location, rewrite);
         }
     }
 }
