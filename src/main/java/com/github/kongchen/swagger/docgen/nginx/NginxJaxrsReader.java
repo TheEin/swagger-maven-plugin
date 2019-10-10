@@ -8,6 +8,7 @@ import io.swagger.models.Swagger;
 import org.apache.maven.plugin.logging.Log;
 
 import java.io.IOException;
+import java.util.Optional;
 
 public class NginxJaxrsReader extends JaxrsReader {
 
@@ -30,16 +31,26 @@ public class NginxJaxrsReader extends JaxrsReader {
 
     @Override
     protected void updatePath(String operationPath, String httpMethod, Operation operation) {
-        operationPath = revertPath(operationPath, httpMethod);
+        operationPath = revertPath(operationPath, httpMethod, operation);
+
         super.updatePath(operationPath, httpMethod, operation);
     }
 
-    private String revertPath(String operationPath, String httpMethod) {
-        if (config == null) {
-            return operationPath;
+    private String revertPath(String operationPath, String httpMethod, Operation operation) {
+        try {
+            if (config == null) {
+                return operationPath;
+            }
+            return new NginxLocationRewriter(config, operationPath, httpMethod, operation).revertPath();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to revert path: "
+                    + Optional.ofNullable(httpMethod)
+                    .map(String::toUpperCase).orElse("NULL")
+                    + Optional.ofNullable(operationPath)
+                    .map(s -> " " + s).orElse("")
+                    + Optional.ofNullable(operation)
+                    .map(Operation::getOperationId).map(s -> ", operationId = " + s).orElse(""),
+                    e);
         }
-
-        return new NginxLocationRewriter(config, operationPath, httpMethod)
-                .revertPath();
     }
 }
