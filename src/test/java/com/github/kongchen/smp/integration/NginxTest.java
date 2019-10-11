@@ -10,6 +10,7 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import java.io.File;
+import java.util.HashMap;
 
 public class NginxTest extends AbstractMojoTestCase {
 
@@ -33,6 +34,29 @@ public class NginxTest extends AbstractMojoTestCase {
             apiSource.setSwaggerDirectory(swaggerOutputDir.getAbsolutePath());
             final NginxConfig nginxConfig = new NginxConfig();
             nginxConfig.setLocation("C:\\src\\rt\\tailored_crm_b2b_rt_hq\\balancer\\nginx\\nginx.conf");
+            HashMap<String, String> properties = new HashMap<>();
+            properties.put("CAM_HOSTS", "127.0.0.1:26000");
+            properties.put("CCMP_BACKEND_HOSTS", "127.0.0.1:26001");
+            properties.put("CCM_HOSTS", "127.0.0.1:8888");
+            properties.put("CDI_RTK_HOSTS", "127.0.0.1:8888");
+            properties.put("CIM_HOSTS", "127.0.0.1:8888");
+            properties.put("COMPOSITE_HOSTS", "127.0.0.1:8888");
+            properties.put("COMPROV_HOSTS", "127.0.0.1:8888");
+            properties.put("COMSLA_HOSTS", "127.0.0.1:8888");
+            properties.put("COMSTR_HOSTS", "127.0.0.1:26001");
+            properties.put("COMSTR_INT_HOSTS", "127.0.0.1:26011");
+            properties.put("COM_CHAT_HOSTS", "127.0.0.1:8888");
+            properties.put("COM_HOSTS", "127.0.0.1:8888");
+            properties.put("COM_PLAN_HOSTS", "127.0.0.1:8888");
+            properties.put("COM_SOAP_HOSTS", "127.0.0.1:8888");
+            properties.put("COM_TMS_HOSTS", "127.0.0.1:8888");
+            properties.put("CPM_RTK_HOSTS", "127.0.0.1:8889");
+            properties.put("FILE_STORAGE_HOSTS", "127.0.0.1:8888");
+            properties.put("OUT_FE", "127.0.0.1:8888");
+            properties.put("OUT_SSO", "127.0.0.1:8888");
+            properties.put("SDM_HOSTS", "127.0.0.1:8888");
+            properties.put("SFA_HOSTS", "127.0.0.1:8888");
+            nginxConfig.setProperties(properties);
             apiSource.setNginxConfig(nginxConfig);
         }
     }

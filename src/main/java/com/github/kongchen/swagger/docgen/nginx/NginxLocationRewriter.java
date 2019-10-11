@@ -10,34 +10,44 @@ import org.apache.commons.lang3.RandomUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class NginxLocationRewriter {
 
+    private enum Match {
+        PREFIX(null, true, false),
+        NO_REGEX("^~", true, false),
+        STRICT("=", false, false),
+        REGEX_MATCH("~", false, true),
+        IREGEX_MATCH("~*", false, true);
+
+        private final String op;
+
+        private final boolean prefix;
+
+        private final boolean regex;
+
+        Match(String op, boolean prefix, boolean regex) {
+            this.op = op;
+            this.prefix = prefix;
+            this.regex = regex;
+        }
+    }
+
     private static final Logger LOGGER = LoggerFactory.getLogger(NginxLocationRewriter.class);
 
     private static final String LOCATION = "location";
 
-    private static final String STRICT_MATCH = "=";
-    private static final String REGEX_MATCH = "~";
-    private static final String IREGEX_MATCH = "~*";
-
-    private static final String[] LOCATION_MATCH = {STRICT_MATCH, REGEX_MATCH, IREGEX_MATCH};
-
     private static final String REWRITE = "rewrite";
 
     private static final String REQUEST_METHOD = "$request_method";
-
-    private static final String EQUALS = "=";
-
-    private static final char LB = '(';
-    private static final char RB = ')';
-    private static final char VB = '|';
 
     private static final String ID_REGEX = "\\d+";
     private static final Pattern PATH_ID = Pattern.compile("\\{\\w+}");
@@ -55,13 +65,15 @@ public class NginxLocationRewriter {
 
     private final Deque<Iterator<NgxEntry>> steps = new LinkedList<>();
 
+    private final List<NgxParam> unconditionalRewrites = new ArrayList<>();
+
     private Iterator<NgxEntry> iterator;
 
     private String revertedPath;
 
     private NgxBlock location;
 
-    private String locationMatch;
+    private Match locationMatch;
 
     private String locationUrl;
 
@@ -114,7 +126,7 @@ public class NginxLocationRewriter {
 
     private void stepOut() {
         if (locationIterator == iterator) {
-            locationIterator = null;
+            locationEnd();
         }
         iterator = steps.poll();
     }
@@ -140,10 +152,17 @@ public class NginxLocationRewriter {
             LOGGER.debug("Nested location: {}", location);
         }
         this.location = location;
-        locationMatch = null;
+        locationMatch = Match.PREFIX;
         locationUrl = null;
         locationIterator = iterator;
         identifyLocation();
+    }
+
+    private void locationEnd() {
+        location = null;
+        locationMatch = null;
+        locationUrl = null;
+        locationIterator = null;
     }
 
     private void identifyLocation() {
@@ -152,8 +171,8 @@ public class NginxLocationRewriter {
             throw new IllegalStateException("Useless location");
         }
         String arg = args.next();
-        for (String match : LOCATION_MATCH) {
-            if (arg.equals(match)) {
+        for (Match match : Match.values()) {
+            if (arg.equals(match.op)) {
                 locationMatch = match;
                 if (!args.hasNext()) {
                     throw new IllegalStateException("Useless location");
@@ -166,7 +185,27 @@ public class NginxLocationRewriter {
         while (args.hasNext()) {
             url.append(args.next());
         }
+        if (locationMatch.prefix) {
+            finishUrl(url);
+        } else if (locationMatch.regex) {
+            if (url.charAt(0) == '^') {
+                url.deleteCharAt(0);
+            }
+            int lastIdx = url.length() - 1;
+            if (url.charAt(lastIdx) == '$') {
+                url.deleteCharAt(lastIdx);
+            } else {
+                finishUrl(url);
+            }
+        }
         locationUrl = url.toString().replace(ID_REGEX, ID_MARK);
+    }
+
+    private static void finishUrl(StringBuilder url) {
+        if (url.charAt(url.length() - 1) != '/') {
+            url.append('/');
+        }
+        url.append("(.*)");
     }
 
 /*
@@ -225,7 +264,10 @@ public class NginxLocationRewriter {
         }
 
         if (var.equals(REQUEST_METHOD)) {
-            if (op == null || !op.equals(EQUALS)) {
+            if (op == null) {
+                throw new IllegalStateException("Unspecified operation");
+            }
+            if (!op.equals("=")) {
                 throw new IllegalStateException("Unsupported operation");
             }
             if (arg == null) {
@@ -246,23 +288,32 @@ public class NginxLocationRewriter {
     }
 
     private void rewrite(NgxParam rewrite) {
-        String regex = null;
-        String replace = null;
-        String opt = null;
         try {
-            Iterator<String> args = rewrite.getValues().iterator();
-            regex = args.next();
-            replace = args.next();
-            opt = args.next();
-        } catch (NoSuchElementException ignore) {
-            // partial args
-        }
-        if (regex == null || replace == null) {
-            throw new IllegalStateException("Useless rewrite");
-        }
-        Matcher matcher = Pattern.compile(regex).matcher(locationUrl);
-        if (matcher.matches()) {
-            LOGGER.info("Match: location = {}, rewrite = {}", location, rewrite);
+            if (location == null) {
+                LOGGER.debug("Store unconditional rewrite: {}", rewrite);
+                unconditionalRewrites.add(rewrite);
+            } else {
+                String regex = null;
+                String replace = null;
+                String opt = null;
+                try {
+                    Iterator<String> args = rewrite.getValues().iterator();
+                    regex = args.next();
+                    replace = args.next();
+                    opt = args.next();
+                } catch (NoSuchElementException ignore) {
+                    // partial args
+                }
+                if (regex == null || replace == null) {
+                    throw new IllegalStateException("Useless rewrite");
+                }
+                Matcher matcher = Pattern.compile(regex.replace("/", "\\/")).matcher(locationUrl);
+                if (!matcher.matches()) {
+                    throw new IllegalStateException("Rewrite wasn't matched");
+                }
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to process rewrite with location: " + locationUrl, e);
         }
     }
 }

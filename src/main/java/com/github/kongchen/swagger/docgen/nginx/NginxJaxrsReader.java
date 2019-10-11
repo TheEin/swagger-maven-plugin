@@ -21,7 +21,7 @@ public class NginxJaxrsReader extends JaxrsReader {
             config = null;
         } else {
             try {
-                NginxConfigReader reader = new NginxConfigReader();
+                NginxConfigReader reader = new NginxConfigReader(nginxConfig.getProperties());
                 config = reader.read(nginxConfig.getLocation());
             } catch (IOException e) {
                 throw new RuntimeException("Failed to load config", e);

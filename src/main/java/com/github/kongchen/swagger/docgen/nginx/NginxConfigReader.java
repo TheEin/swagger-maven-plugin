@@ -10,7 +10,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Collections;
+import java.util.Map;
 import java.util.Scanner;
 
 public class NginxConfigReader {
@@ -37,9 +37,9 @@ public class NginxConfigReader {
 
     private final String context;
 
-    public NginxConfigReader() throws IOException {
+    public NginxConfigReader(Map<String, String> context) {
         djangoTemplate = new DjangoTemplate();
-        context = DjangoTemplate.buildContext(Collections.emptyMap());
+        this.context = DjangoTemplate.buildContext(context);
     }
 
     public NgxConfig read(String path) throws IOException {

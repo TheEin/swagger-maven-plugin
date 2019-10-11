@@ -49,7 +49,7 @@ public class DjangoTemplate {
     public String render(String t, String ctx) {
         try {
             PY.set("t", t);
-            PY.set("ctx", ctx);
+            PY.exec("ctx = " + ctx);
             return PY.eval("renderTemplate(t, ctx)").asString();
         } catch (Exception e) {
             throw new RuntimeException("Failed to render template", e);
