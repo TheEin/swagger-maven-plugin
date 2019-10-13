@@ -47,6 +47,10 @@ public class NginxLocationRewriter {
 
     private static final String REWRITE = "rewrite";
 
+    private static final String BREAK = "break";
+
+    private static final String LAST = "last";
+
     private static final String REQUEST_METHOD = "$request_method";
 
     private static final String ID_REGEX = "\\d+";
@@ -55,17 +59,17 @@ public class NginxLocationRewriter {
 
     private final NgxConfig config;
 
-    private final String path;
-
-    private final String markedPath;
-
-    private final String httpMethod;
-
     private final Operation operation;
 
-    private final Deque<Iterator<NgxEntry>> steps = new LinkedList<>();
+    private String path;
 
-    private final List<NgxParam> unconditionalRewrites = new ArrayList<>();
+    private String markedPath;
+
+    private String httpMethod;
+
+    private Deque<Iterator<NgxEntry>> steps;
+
+    private List<NgxParam> unconditionalRewrites;
 
     private Iterator<NgxEntry> iterator;
 
@@ -91,10 +95,24 @@ public class NginxLocationRewriter {
             throw new IllegalArgumentException("HTTP method can't be null");
         }
         this.config = config;
+        this.operation = operation;
+        init(path, httpMethod);
+    }
+
+    private void init(String path, String httpMethod) {
         this.path = path;
         markedPath = PATH_ID.matcher(path).replaceAll(ID_MARK);
         this.httpMethod = httpMethod.toUpperCase();
-        this.operation = operation;
+        steps = new LinkedList<>();
+        unconditionalRewrites = new ArrayList<>();
+        iterator = null;
+        revertedPath = null;
+        location = null;
+        locationMatch = null;
+        locationUrl = null;
+        locationIterator = null;
+        prefixLocation = null;
+        patternLocation = null;
     }
 
     public String revertPath() {
@@ -199,6 +217,7 @@ public class NginxLocationRewriter {
             }
         }
         locationUrl = url.toString().replace(ID_REGEX, ID_MARK);
+        LOGGER.debug("Location URL: {}", locationUrl);
     }
 
     private static void finishUrl(StringBuilder url) {
@@ -276,8 +295,9 @@ public class NginxLocationRewriter {
             if (!arg.equals(httpMethod)) {
                 LOGGER.debug("Condition wasn't matched: {}", block);
                 stepOut();
+            } else {
+                LOGGER.debug("Condition was matched: {}", block);
             }
-            LOGGER.debug("Condition was matched: {}", block);
         }
     }
 
@@ -307,13 +327,47 @@ public class NginxLocationRewriter {
                 if (regex == null || replace == null) {
                     throw new IllegalStateException("Useless rewrite");
                 }
-                Matcher matcher = Pattern.compile(regex.replace("/", "\\/")).matcher(locationUrl);
-                if (!matcher.matches()) {
-                    throw new IllegalStateException("Rewrite wasn't matched");
+                if (matchPath(rewrite, regex, replace)) {
+                    revertPath(rewrite, regex, replace);
+                    if (opt != null) {
+                        if (opt.equals(BREAK)) {
+                            stepOut();
+                        } else if (opt.equals(LAST)) {
+                            init(revertedPath, httpMethod);
+                            revertPath();
+                        } else {
+                            throw new IllegalStateException("Unsupported rewrite option");
+                        }
+                    }
                 }
             }
         } catch (Exception e) {
             throw new RuntimeException("Failed to process rewrite with location: " + locationUrl, e);
         }
+    }
+
+    private boolean matchPath(NgxParam rewrite, String regex, String replace) {
+        Matcher matcher = Pattern.compile(regex.replace("/", "\\/")).matcher(locationUrl);
+        if (!matcher.matches()) {
+            LOGGER.debug("Rewrite wasn't matched: {}", rewrite);
+        } else {
+            LOGGER.debug("Rewrite was matched: {}", rewrite);
+            StringBuffer sb = new StringBuffer();
+            matcher.appendReplacement(sb, replace).appendTail(sb);
+            String result = sb.toString();
+            LOGGER.debug("Result URL: {}", result);
+            matcher = Pattern.compile(result).matcher(markedPath);
+            if (!matcher.matches()) {
+                LOGGER.debug("Path wasn't matched");
+            } else {
+                LOGGER.debug("Path was matched");
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String revertPath(NgxParam rewrite, String regex, String replace) {
+
     }
 }
