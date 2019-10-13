@@ -15,9 +15,14 @@ import java.util.Deque;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.NoSuchElementException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import static com.github.kongchen.swagger.docgen.nginx.NginxDirective.BREAK;
+import static com.github.kongchen.swagger.docgen.nginx.NginxDirective.LAST;
+import static com.github.kongchen.swagger.docgen.nginx.NginxDirective.LOCATION;
+import static com.github.kongchen.swagger.docgen.nginx.NginxDirective.REQUEST_METHOD;
+import static com.github.kongchen.swagger.docgen.nginx.NginxDirective.REWRITE;
 
 public class NginxLocationRewriter {
 
@@ -41,17 +46,10 @@ public class NginxLocationRewriter {
         }
     }
 
+    private static class FinishProcessing extends RuntimeException {
+    }
+
     private static final Logger LOGGER = LoggerFactory.getLogger(NginxLocationRewriter.class);
-
-    private static final String LOCATION = "location";
-
-    private static final String REWRITE = "rewrite";
-
-    private static final String BREAK = "break";
-
-    private static final String LAST = "last";
-
-    private static final String REQUEST_METHOD = "$request_method";
 
     private static final String ID_REGEX = "\\d+";
     private static final Pattern PATH_ID = Pattern.compile("\\{\\w+}");
@@ -61,19 +59,17 @@ public class NginxLocationRewriter {
 
     private final Operation operation;
 
-    private String path;
+    private final String path;
 
-    private String markedPath;
+    private final String markedPath;
 
-    private String httpMethod;
+    private final String httpMethod;
 
-    private Deque<Iterator<NgxEntry>> steps;
+    private final Deque<Iterator<NgxEntry>> steps = new LinkedList<>();
 
-    private List<NgxParam> unconditionalRewrites;
+    private final List<NgxParam> unconditionalRewrites = new ArrayList<>();
 
     private Iterator<NgxEntry> iterator;
-
-    private String revertedPath;
 
     private NgxBlock location;
 
@@ -85,7 +81,27 @@ public class NginxLocationRewriter {
 
     private NgxBlock prefixLocation;
 
-    private NgxBlock patternLocation;
+    private Match prefixLocationMatch;
+
+    private String prefixLocationUrl;
+
+    private NgxBlock regexLocation;
+
+    private static <T> Iterator<T> infiniteIterator(Iterable<T> source) {
+        Iterator<T> inner = source.iterator();
+
+        return new Iterator<T>() {
+            @Override
+            public boolean hasNext() {
+                return inner.hasNext();
+            }
+
+            @Override
+            public T next() {
+                return inner.hasNext() ? inner.next() : null;
+            }
+        };
+    }
 
     public NginxLocationRewriter(NgxConfig config, String path, String httpMethod, Operation operation) {
         if (path == null) {
@@ -96,45 +112,49 @@ public class NginxLocationRewriter {
         }
         this.config = config;
         this.operation = operation;
-        init(path, httpMethod);
-    }
-
-    private void init(String path, String httpMethod) {
         this.path = path;
         markedPath = PATH_ID.matcher(path).replaceAll(ID_MARK);
         this.httpMethod = httpMethod.toUpperCase();
-        steps = new LinkedList<>();
-        unconditionalRewrites = new ArrayList<>();
-        iterator = null;
-        revertedPath = null;
-        location = null;
-        locationMatch = null;
-        locationUrl = null;
-        locationIterator = null;
-        prefixLocation = null;
-        patternLocation = null;
     }
 
     public String revertPath() {
         LOGGER.info("Reverting {} {}, operationId = {}", httpMethod, path, operation.getOperationId());
-        revertedPath = path;
         iterator = config.iterator();
-        do {
-            while (iterator.hasNext()) {
-                NgxEntry entry = iterator.next();
-                try {
-                    if (entry instanceof NgxBlock) {
-                        block((NgxBlock) entry);
-                    } else if (entry instanceof NgxParam) {
-                        param((NgxParam) entry);
+        try {
+            do {
+                while (iterator.hasNext()) {
+                    NgxEntry entry = iterator.next();
+                    try {
+                        if (entry instanceof NgxBlock) {
+                            block((NgxBlock) entry);
+                        } else if (entry instanceof NgxParam) {
+                            param((NgxParam) entry);
+                        }
+                    } catch (FinishProcessing e) {
+                        throw e;
+                    } catch (Exception e) {
+                        throw new RuntimeException("Failed to process entry: " + entry, e);
                     }
-                } catch (Exception e) {
-                    throw new RuntimeException("Failed to process entry: " + entry, e);
                 }
-            }
-            stepOut();
-        } while (iterator != null);
+                stepOut();
+            } while (iterator != null);
+        } catch (FinishProcessing ignore) {
+            // use locations were found
+        }
+        String revertedPath = path;
+        if (prefixLocation != null && prefixLocationMatch == Match.NO_REGEX) {
+            revertedPath = revertWith(prefixLocation);
+        } else if (regexLocation != null) {
+            revertedPath = revertWith(regexLocation);
+        } else if (prefixLocation != null) {
+            revertedPath = revertWith(prefixLocation);
+        }
+        LOGGER.debug("Reverted path: {}", revertedPath);
         return revertedPath;
+    }
+
+    private String revertWith(NgxBlock location) {
+        return path; // TODO revert it!
     }
 
     private void stepIn(Iterator<NgxEntry> innerIterator) {
@@ -174,6 +194,10 @@ public class NginxLocationRewriter {
         locationUrl = null;
         locationIterator = iterator;
         identifyLocation();
+        if (locationMatch.regex && regexLocation != null) {
+            LOGGER.debug("Skipping regex location");
+            stepOut();
+        }
     }
 
     private void locationEnd() {
@@ -267,17 +291,10 @@ public class NginxLocationRewriter {
 */
 
     private void ifBlock(NgxIfBlock block) {
-        String var = null;
-        String op = null;
-        String arg = null;
-        try {
-            Iterator<String> args = block.getValues().iterator();
-            var = args.next();
-            op = args.next();
-            arg = args.next();
-        } catch (NoSuchElementException ignore) {
-            // partial args
-        }
+        Iterator<String> args = infiniteIterator(block.getValues());
+        String var = args.next();
+        String op = args.next();
+        String arg = args.next();
         if (var == null) {
             throw new IllegalStateException("Useless if block");
         }
@@ -313,36 +330,22 @@ public class NginxLocationRewriter {
                 LOGGER.debug("Store unconditional rewrite: {}", rewrite);
                 unconditionalRewrites.add(rewrite);
             } else {
-                String regex = null;
-                String replace = null;
-                String opt = null;
-                try {
-                    Iterator<String> args = rewrite.getValues().iterator();
-                    regex = args.next();
-                    replace = args.next();
-                    opt = args.next();
-                } catch (NoSuchElementException ignore) {
-                    // partial args
-                }
+                Iterator<String> args = infiniteIterator(rewrite.getValues());
+                String regex = args.next();
+                String replace = args.next();
+                String opt = args.next();
                 if (regex == null || replace == null) {
                     throw new IllegalStateException("Useless rewrite");
                 }
                 if (matchPath(rewrite, regex, replace)) {
-                    revertPath(rewrite, regex, replace);
-                    if (opt != null) {
-                        if (opt.equals(BREAK)) {
-                            stepOut();
-                        } else if (opt.equals(LAST)) {
-                            init(revertedPath, httpMethod);
-                            revertPath();
-                        } else {
-                            throw new IllegalStateException("Unsupported rewrite option");
-                        }
-                    }
+                    useMatchedLocation();
+                    applyRewriteOption(opt);
                 }
             }
+        } catch (FinishProcessing e) {
+            throw e;
         } catch (Exception e) {
-            throw new RuntimeException("Failed to process rewrite with location: " + locationUrl, e);
+            throw new RuntimeException("Failed to process rewrite with location: " + location, e);
         }
     }
 
@@ -367,7 +370,37 @@ public class NginxLocationRewriter {
         return false;
     }
 
-    private String revertPath(NgxParam rewrite, String regex, String replace) {
+    private void useMatchedLocation() {
+        if (locationMatch.prefix) {
+            if (prefixLocation == null || prefixLocationUrl.length() < locationUrl.length()) {
+                setPrefixLocation();
+            }
+        } else if (locationMatch.regex) {
+            regexLocation = location;
+        } else if (locationMatch == Match.STRICT) {
+            setPrefixLocation();
+            regexLocation = null;
+            throw new FinishProcessing();
+        } else {
+            throw new IllegalStateException("Location match type is not supported");
+        }
+    }
 
+    private void setPrefixLocation() {
+        prefixLocation = location;
+        prefixLocationMatch = locationMatch;
+        prefixLocationUrl = locationUrl;
+    }
+
+    private void applyRewriteOption(String opt) {
+        if (opt != null) {
+            if (opt.equals(BREAK)) {
+                stepOut();
+            } else if (opt.equals(LAST)) {
+                throw new FinishProcessing();
+            } else {
+                throw new IllegalStateException("Unsupported rewrite option");
+            }
+        }
     }
 }

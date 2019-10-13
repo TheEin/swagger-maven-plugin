@@ -32,7 +32,6 @@ public class NginxJaxrsReader extends JaxrsReader {
     @Override
     protected void updatePath(String operationPath, String httpMethod, Operation operation) {
         operationPath = revertPath(operationPath, httpMethod, operation);
-        System.exit(777);
         super.updatePath(operationPath, httpMethod, operation);
     }
 
