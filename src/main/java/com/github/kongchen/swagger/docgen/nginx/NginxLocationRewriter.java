@@ -15,6 +15,7 @@ import java.util.Deque;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -49,13 +50,33 @@ public class NginxLocationRewriter {
         }
     }
 
-    private static class RewriteMatch {
+    private static class RewriteParams {
+
         public final String regex;
         public final String replace;
+        public final String opt;
 
-        public RewriteMatch(String regex, String replace) {
+        public RewriteParams(String regex, String replace, String opt) {
             this.regex = regex;
             this.replace = replace;
+            this.opt = opt;
+        }
+
+        public RewriteParams(NgxParam rewrite) {
+            Iterator<String> args = argsIterator(rewrite.getValues());
+
+            regex = args.next();
+            replace = args.next();
+            opt = args.next();
+
+            if (regex == null || replace == null) {
+                throw new IllegalStateException("Useless rewrite");
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "regex = " + regex + ", replace = " + replace;
         }
     }
 
@@ -67,44 +88,30 @@ public class NginxLocationRewriter {
     private static final String ID_REGEX = "\\d+";
     private static final Pattern PATH_ID = Pattern.compile("\\{\\w+}");
     private static final String ID_MARK = String.valueOf(RandomUtils.nextInt(1 << 30, Integer.MAX_VALUE));
+    private static final Pattern REPLACE_GROUP = Pattern.compile("\\$(\\d+)");
 
     private final NgxConfig config;
-
     private final Operation operation;
-
     private final String path;
-
     private final String markedPath;
-
     private final String httpMethod;
-
     private final Deque<Iterator<NgxEntry>> steps = new LinkedList<>();
-
     private final List<NgxParam> unconditionalRewrites = new ArrayList<>();
 
     private Iterator<NgxEntry> iterator;
-
     private NgxBlock location;
-
     private LocationType locationType;
-
     private String locationUrl;
-
+    private String locationRegex;
     private Iterator<NgxEntry> locationIterator;
-
     private NgxBlock prefixLocation;
-
     private LocationType prefixLocationType;
-
     private String prefixLocationUrl;
-
-    private RewriteMatch prefixRewrite;
-
+    private RewriteParams prefixRewrite;
     private NgxBlock regexLocation;
+    private RewriteParams regexRewrite;
 
-    private RewriteMatch regexRewrite;
-
-    private static <T> Iterator<T> infiniteIterator(Iterable<T> source) {
+    private static <T> Iterator<T> argsIterator(Iterable<T> source) {
         Iterator<T> inner = source.iterator();
 
         return new Iterator<T>() {
@@ -140,18 +147,7 @@ public class NginxLocationRewriter {
         try {
             do {
                 while (iterator.hasNext()) {
-                    NgxEntry entry = iterator.next();
-                    try {
-                        if (entry instanceof NgxBlock) {
-                            block((NgxBlock) entry);
-                        } else if (entry instanceof NgxParam) {
-                            param((NgxParam) entry);
-                        }
-                    } catch (FinishProcessing e) {
-                        throw e;
-                    } catch (Exception e) {
-                        throw new RuntimeException("Failed to process entry: " + entry, e);
-                    }
+                    entry(iterator.next());
                 }
                 stepOut();
             } while (iterator != null);
@@ -160,18 +156,49 @@ public class NginxLocationRewriter {
         }
         String revertedPath = path;
         if (prefixLocation != null && prefixLocationType.noRegex) {
-            revertedPath = revertWith(prefixRewrite);
+            revertedPath = revertPath(revertedPath, prefixRewrite, false);
         } else if (regexLocation != null) {
-            revertedPath = revertWith(regexRewrite);
+            revertedPath = revertPath(revertedPath, regexRewrite, false);
         } else if (prefixLocation != null) {
-            revertedPath = revertWith(prefixRewrite);
+            revertedPath = revertPath(revertedPath, prefixRewrite, false);
         }
-        LOGGER.debug("Reverted path: {}", revertedPath);
+        ListIterator<NgxParam> it = unconditionalRewrites.listIterator(unconditionalRewrites.size());
+        while (it.hasPrevious()) {
+            NgxParam rewrite = it.previous();
+            RewriteParams params = revertRewrite(new RewriteParams(rewrite));
+            Matcher matcher = Pattern
+                    .compile(params.regex.replace("/", "\\/"))
+                    .matcher(revertedPath);
+            if (!matcher.matches()) {
+                LOGGER.debug("Unconditional rewrite wasn't matched: {}", rewrite);
+            } else {
+                LOGGER.debug("Unconditional rewrite was matched: {}", rewrite);
+                StringBuffer sb = new StringBuffer();
+                matcher.appendReplacement(sb, params.replace).appendTail(sb);
+                revertedPath = sb.toString();
+                LOGGER.debug("Unconditionally reverted path: {}", revertedPath);
+            }
+        }
+        LOGGER.info("Reverted path: {}", revertedPath);
         return revertedPath;
     }
 
-    private String revertWith(RewriteMatch rewrite) {
-        return path; // TODO revert it!
+    private String revertPath(String path, RewriteParams rewrite, boolean optional) {
+        LOGGER.debug("Revert path {} with {}", path, rewrite);
+        Matcher matcher = Pattern
+                .compile(rewrite.regex.replace("/", "\\/"))
+                .matcher(path);
+        if (!matcher.matches()) {
+            if (optional) {
+                LOGGER.debug("Rewrite wasn't matched");
+                return path;
+            }
+            throw new IllegalStateException("Rewrite " + rewrite + " doesn't match path " + path);
+        }
+        StringBuffer sb = new StringBuffer();
+        matcher.appendReplacement(sb, rewrite.replace).appendTail(sb);
+        LOGGER.debug("Reverted path: {}", sb);
+        return sb.toString();
     }
 
     private void stepIn(Iterator<NgxEntry> innerIterator) {
@@ -184,6 +211,20 @@ public class NginxLocationRewriter {
             locationEnd();
         }
         iterator = steps.poll();
+    }
+
+    private void entry(NgxEntry entry) {
+        try {
+            if (entry instanceof NgxBlock) {
+                block((NgxBlock) entry);
+            } else if (entry instanceof NgxParam) {
+                param((NgxParam) entry);
+            }
+        } catch (FinishProcessing e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to process entry: " + entry, e);
+        }
     }
 
     private void block(NgxBlock block) {
@@ -208,7 +249,7 @@ public class NginxLocationRewriter {
         }
         this.location = location;
         locationType = LocationType.PREFIX;
-        locationUrl = null;
+        locationRegex = null;
         locationIterator = iterator;
         identifyLocation();
         if (locationType.regex && regexLocation != null) {
@@ -220,7 +261,7 @@ public class NginxLocationRewriter {
     private void locationEnd() {
         location = null;
         locationType = null;
-        locationUrl = null;
+        locationRegex = null;
         locationIterator = null;
     }
 
@@ -244,13 +285,16 @@ public class NginxLocationRewriter {
         while (args.hasNext()) {
             url.append(args.next());
         }
-        if (locationType.prefix) {
-            prefixToRegex(url);
-        } else if (locationType.regex) {
+        if (locationType.regex) {
             normalizeRegex(url);
+        } else {
+            locationUrl = url.toString();
+            if (locationType.prefix) {
+                prefixToRegex(url);
+            }
         }
-        locationUrl = url.toString().replace(ID_REGEX, ID_MARK);
-        LOGGER.debug("Location URL: {}", locationUrl);
+        locationRegex = url.toString().replace(ID_REGEX, ID_MARK);
+        LOGGER.debug("Location URL: {}", locationRegex);
     }
 
     private static void prefixToRegex(StringBuilder url) {
@@ -272,47 +316,82 @@ public class NginxLocationRewriter {
         }
     }
 
-/*
-    private void expandLocationUrls() {
-        List<String> done = new ArrayList<>();
-        while (!locationUrls.isEmpty()) {
-            String url = locationUrls.remove(locationUrls.size() - 1);
-            int lb = url.indexOf(LB);
-            if (lb < 0) {
-                done.add(url);
-                continue;
+    private RewriteParams revertRewrite(RewriteParams rewrite) {
+        List<Integer> replaceGroups = new ArrayList<>();
+        String regex = revertReplace(rewrite.replace, replaceGroups);
+        String replace;
+        if (replaceGroups.isEmpty()) {
+            if (locationUrl.indexOf('(') >= 0) {
+                throw new IllegalStateException("Replace and location both should be constant");
             }
-            int rb;
-            List<Integer> vb = new ArrayList<>();
+            replace = locationUrl;
+        } else {
+            replace = revertRegex(rewrite.regex, replaceGroups);
+        }
+        return new RewriteParams(regex, replace, rewrite.opt);
+    }
+
+    private static String revertReplace(String replace, List<Integer> replaceGroups) {
+        StringBuffer sb = new StringBuffer();
+        Matcher matcher = REPLACE_GROUP.matcher(replace);
+        while (matcher.find()) {
+            matcher.appendReplacement(sb, "(.*)");
+            String val = matcher.group(1);
+            replaceGroups.add(Integer.parseInt(val));
+        }
+        if (replaceGroups.isEmpty()) {
+            LOGGER.debug("Constant replace: {}", replace);
+            return replace;
+        }
+        matcher.appendTail(sb);
+        LOGGER.debug("Reverted replace {} with groups {}", sb, replaceGroups);
+        return sb.toString();
+    }
+
+    private static String revertRegex(String regex, List<Integer> replaceGroups) {
+        int lb = regex.indexOf('(');
+        if (lb < 0) {
+            throw new IllegalStateException("Not a regex: " + regex);
+        }
+        StringBuilder sb = new StringBuilder();
+        int rb = 0;
+        int matchIdx = 1;
+        do {
+            if (lb > rb) {
+                sb.append(regex, rb, lb);
+            }
             int deep = 0;
-            for (rb = lb + 1; rb < url.length(); ++rb) {
-                int c = url.charAt(rb);
-                if (c == RB) {
+            for (rb = lb + 1; rb < regex.length(); ++rb) {
+                int c = regex.charAt(rb);
+                if (c == ')') {
                     --deep;
                     if (deep < 0) {
                         break;
                     }
-                } else if (c == LB) {
+                } else if (c == '(') {
                     ++deep;
-                } else if (c == VB) {
-                    if (deep == 0) {
-                        vb.add(rb);
-                    }
                 }
             }
-            if (rb == url.length()) {
+            if (rb == regex.length()) {
                 throw new IllegalStateException("Unfinished group");
             }
-            if (vb.isEmpty()) {
-                throw new IllegalStateException("Useless group");
+            int groupIdx = replaceGroups.indexOf(matchIdx);
+            if (groupIdx < 0) {
+                throw new IllegalStateException("Replace group not found for match index " + matchIdx);
             }
+            sb.append('$').append(++groupIdx);
+            lb = regex.indexOf('(', ++rb);
+        } while (lb > 0);
+        if (rb < regex.length()) {
+            sb.append(regex, rb, regex.length());
         }
-        locationUrls = done;
+        normalizeRegex(sb);
+        LOGGER.debug("Reverted regex {}", sb);
+        return sb.toString();
     }
-*/
 
     private void ifBlock(NgxIfBlock block) {
-        Iterator<String> args = infiniteIterator(block.getValues());
+        Iterator<String> args = argsIterator(block.getValues());
         String var = args.next();
         String op = args.next();
         String arg = args.next();
@@ -351,16 +430,10 @@ public class NginxLocationRewriter {
                 LOGGER.debug("Store unconditional rewrite: {}", rewrite);
                 unconditionalRewrites.add(rewrite);
             } else {
-                Iterator<String> args = infiniteIterator(rewrite.getValues());
-                String regex = args.next();
-                String replace = args.next();
-                String opt = args.next();
-                if (regex == null || replace == null) {
-                    throw new IllegalStateException("Useless rewrite");
-                }
-                if (matchPath(rewrite, regex, replace)) {
-                    useMatchedLocation(new RewriteMatch(regex, replace));
-                    applyRewriteOption(opt);
+                RewriteParams params = revertRewrite(new RewriteParams(rewrite));
+                if (matchPath(params)) {
+                    useMatchedLocation(params);
+                    applyRewriteOption(params.opt);
                 }
             }
         } catch (FinishProcessing e) {
@@ -370,17 +443,21 @@ public class NginxLocationRewriter {
         }
     }
 
-    private boolean matchPath(NgxParam rewrite, String regex, String replace) {
-        Matcher matcher = Pattern.compile(regex.replace("/", "\\/")).matcher(locationUrl);
+    private boolean matchPath(RewriteParams rewrite) {
+        Matcher matcher = Pattern
+                .compile(rewrite.regex.replace("/", "\\/"))
+                .matcher(markedPath);
         if (!matcher.matches()) {
             LOGGER.debug("Rewrite wasn't matched: {}", rewrite);
         } else {
             LOGGER.debug("Rewrite was matched: {}", rewrite);
             StringBuffer sb = new StringBuffer();
-            matcher.appendReplacement(sb, replace).appendTail(sb);
+            matcher.appendReplacement(sb, rewrite.replace).appendTail(sb);
             String result = sb.toString();
             LOGGER.debug("Result URL: {}", result);
-            matcher = Pattern.compile(result).matcher(markedPath);
+            matcher = Pattern
+                    .compile(locationRegex.replace("/", "\\/"))
+                    .matcher(result);
             if (!matcher.matches()) {
                 LOGGER.debug("Path wasn't matched");
             } else {
@@ -391,9 +468,9 @@ public class NginxLocationRewriter {
         return false;
     }
 
-    private void useMatchedLocation(RewriteMatch rewrite) {
+    private void useMatchedLocation(RewriteParams rewrite) {
         if (locationType.prefix) {
-            if (prefixLocation == null || prefixLocationUrl.length() < locationUrl.length()) {
+            if (prefixLocation == null || prefixLocationUrl.length() < locationRegex.length()) {
                 setPrefixLocation(rewrite);
             }
         } else if (locationType.regex) {
@@ -407,14 +484,14 @@ public class NginxLocationRewriter {
         }
     }
 
-    private void setPrefixLocation(RewriteMatch rewrite) {
+    private void setPrefixLocation(RewriteParams rewrite) {
         prefixLocation = location;
         prefixLocationType = locationType;
-        prefixLocationUrl = locationUrl;
+        prefixLocationUrl = locationRegex;
         prefixRewrite = rewrite;
     }
 
-    private void setRegexLocation(RewriteMatch rewrite) {
+    private void setRegexLocation(RewriteParams rewrite) {
         regexLocation = location;
         regexRewrite = rewrite;
     }
