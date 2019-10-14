@@ -26,12 +26,12 @@ import static com.github.kongchen.swagger.docgen.nginx.NginxDirective.REWRITE;
 
 public class NginxLocationRewriter {
 
-    private enum Match {
-        PREFIX(null, true, false),
-        NO_REGEX("^~", true, false),
-        STRICT("=", false, false),
-        REGEX_MATCH("~", false, true),
-        IREGEX_MATCH("~*", false, true);
+    private enum LocationType {
+        PREFIX(null, true, false, false),
+        NO_REGEX("^~", true, false, true),
+        STRICT("=", false, false, true),
+        REGEX_MATCH("~", false, true, false),
+        IREGEX_MATCH("~*", false, true, false);
 
         private final String op;
 
@@ -39,10 +39,23 @@ public class NginxLocationRewriter {
 
         private final boolean regex;
 
-        Match(String op, boolean prefix, boolean regex) {
+        private final boolean noRegex;
+
+        LocationType(String op, boolean prefix, boolean regex, boolean noRegex) {
             this.op = op;
             this.prefix = prefix;
             this.regex = regex;
+            this.noRegex = noRegex;
+        }
+    }
+
+    private static class RewriteMatch {
+        public final String regex;
+        public final String replace;
+
+        public RewriteMatch(String regex, String replace) {
+            this.regex = regex;
+            this.replace = replace;
         }
     }
 
@@ -73,7 +86,7 @@ public class NginxLocationRewriter {
 
     private NgxBlock location;
 
-    private Match locationMatch;
+    private LocationType locationType;
 
     private String locationUrl;
 
@@ -81,11 +94,15 @@ public class NginxLocationRewriter {
 
     private NgxBlock prefixLocation;
 
-    private Match prefixLocationMatch;
+    private LocationType prefixLocationType;
 
     private String prefixLocationUrl;
 
+    private RewriteMatch prefixRewrite;
+
     private NgxBlock regexLocation;
+
+    private RewriteMatch regexRewrite;
 
     private static <T> Iterator<T> infiniteIterator(Iterable<T> source) {
         Iterator<T> inner = source.iterator();
@@ -142,18 +159,18 @@ public class NginxLocationRewriter {
             // use locations were found
         }
         String revertedPath = path;
-        if (prefixLocation != null && prefixLocationMatch == Match.NO_REGEX) {
-            revertedPath = revertWith(prefixLocation);
+        if (prefixLocation != null && prefixLocationType.noRegex) {
+            revertedPath = revertWith(prefixRewrite);
         } else if (regexLocation != null) {
-            revertedPath = revertWith(regexLocation);
+            revertedPath = revertWith(regexRewrite);
         } else if (prefixLocation != null) {
-            revertedPath = revertWith(prefixLocation);
+            revertedPath = revertWith(prefixRewrite);
         }
         LOGGER.debug("Reverted path: {}", revertedPath);
         return revertedPath;
     }
 
-    private String revertWith(NgxBlock location) {
+    private String revertWith(RewriteMatch rewrite) {
         return path; // TODO revert it!
     }
 
@@ -190,11 +207,11 @@ public class NginxLocationRewriter {
             LOGGER.debug("Nested location: {}", location);
         }
         this.location = location;
-        locationMatch = Match.PREFIX;
+        locationType = LocationType.PREFIX;
         locationUrl = null;
         locationIterator = iterator;
         identifyLocation();
-        if (locationMatch.regex && regexLocation != null) {
+        if (locationType.regex && regexLocation != null) {
             LOGGER.debug("Skipping regex location");
             stepOut();
         }
@@ -202,7 +219,7 @@ public class NginxLocationRewriter {
 
     private void locationEnd() {
         location = null;
-        locationMatch = null;
+        locationType = null;
         locationUrl = null;
         locationIterator = null;
     }
@@ -213,9 +230,9 @@ public class NginxLocationRewriter {
             throw new IllegalStateException("Useless location");
         }
         String arg = args.next();
-        for (Match match : Match.values()) {
-            if (arg.equals(match.op)) {
-                locationMatch = match;
+        for (LocationType type : LocationType.values()) {
+            if (arg.equals(type.op)) {
+                locationType = type;
                 if (!args.hasNext()) {
                     throw new IllegalStateException("Useless location");
                 }
@@ -227,28 +244,32 @@ public class NginxLocationRewriter {
         while (args.hasNext()) {
             url.append(args.next());
         }
-        if (locationMatch.prefix) {
-            finishUrl(url);
-        } else if (locationMatch.regex) {
-            if (url.charAt(0) == '^') {
-                url.deleteCharAt(0);
-            }
-            int lastIdx = url.length() - 1;
-            if (url.charAt(lastIdx) == '$') {
-                url.deleteCharAt(lastIdx);
-            } else {
-                finishUrl(url);
-            }
+        if (locationType.prefix) {
+            prefixToRegex(url);
+        } else if (locationType.regex) {
+            normalizeRegex(url);
         }
         locationUrl = url.toString().replace(ID_REGEX, ID_MARK);
         LOGGER.debug("Location URL: {}", locationUrl);
     }
 
-    private static void finishUrl(StringBuilder url) {
+    private static void prefixToRegex(StringBuilder url) {
         if (url.charAt(url.length() - 1) != '/') {
             url.append('/');
         }
         url.append("(.*)");
+    }
+
+    private static void normalizeRegex(StringBuilder url) {
+        if (url.charAt(0) == '^') {
+            url.deleteCharAt(0);
+        }
+        int lastIdx = url.length() - 1;
+        if (url.charAt(lastIdx) == '$') {
+            url.deleteCharAt(lastIdx);
+        } else {
+            prefixToRegex(url);
+        }
     }
 
 /*
@@ -338,7 +359,7 @@ public class NginxLocationRewriter {
                     throw new IllegalStateException("Useless rewrite");
                 }
                 if (matchPath(rewrite, regex, replace)) {
-                    useMatchedLocation();
+                    useMatchedLocation(new RewriteMatch(regex, replace));
                     applyRewriteOption(opt);
                 }
             }
@@ -370,26 +391,37 @@ public class NginxLocationRewriter {
         return false;
     }
 
-    private void useMatchedLocation() {
-        if (locationMatch.prefix) {
+    private void useMatchedLocation(RewriteMatch rewrite) {
+        if (locationType.prefix) {
             if (prefixLocation == null || prefixLocationUrl.length() < locationUrl.length()) {
-                setPrefixLocation();
+                setPrefixLocation(rewrite);
             }
-        } else if (locationMatch.regex) {
-            regexLocation = location;
-        } else if (locationMatch == Match.STRICT) {
-            setPrefixLocation();
-            regexLocation = null;
+        } else if (locationType.regex) {
+            setRegexLocation(rewrite);
+        } else if (locationType == LocationType.STRICT) {
+            setPrefixLocation(rewrite);
+            resetRegexLocation();
             throw new FinishProcessing();
         } else {
             throw new IllegalStateException("Location match type is not supported");
         }
     }
 
-    private void setPrefixLocation() {
+    private void setPrefixLocation(RewriteMatch rewrite) {
         prefixLocation = location;
-        prefixLocationMatch = locationMatch;
+        prefixLocationType = locationType;
         prefixLocationUrl = locationUrl;
+        prefixRewrite = rewrite;
+    }
+
+    private void setRegexLocation(RewriteMatch rewrite) {
+        regexLocation = location;
+        regexRewrite = rewrite;
+    }
+
+    private void resetRegexLocation() {
+        regexLocation = null;
+        regexRewrite = null;
     }
 
     private void applyRewriteOption(String opt) {
