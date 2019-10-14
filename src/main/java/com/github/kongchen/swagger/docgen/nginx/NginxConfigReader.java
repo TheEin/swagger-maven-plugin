@@ -8,6 +8,7 @@ import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
@@ -33,13 +34,19 @@ public class NginxConfigReader {
         return content;
     }
 
-    private final DjangoTemplate djangoTemplate;
+    private final DirectoryStream.Filter<Path> excludeFilter;
 
     private final String context;
 
-    public NginxConfigReader(Map<String, String> context) {
-        djangoTemplate = new DjangoTemplate();
+    private final DjangoTemplate djangoTemplate = new DjangoTemplate();
+
+    public NginxConfigReader(DirectoryStream.Filter<Path> excludeFilter, Map<String, String> context) {
+        this.excludeFilter = excludeFilter == null ? path -> true : excludeFilter;
         this.context = DjangoTemplate.buildContext(context);
+    }
+
+    public DirectoryStream.Filter<Path> getExcludeFilter() {
+        return excludeFilter;
     }
 
     public NgxConfig read(String path) throws IOException {

@@ -87,6 +87,10 @@ public class NginxBlockResolver<T extends NgxBlock> {
             try (DirectoryStream<Path> paths = Files.newDirectoryStream(dir.resolve(relative), filter)) {
                 ArrayList<NgxConfig> includes = new ArrayList<>();
                 for (Path path : paths) {
+                    if (reader.getExcludeFilter().accept(path)) {
+                        LOGGER.debug("Skipping include: {}", path);
+                        continue;
+                    }
                     NgxConfig config = reader.read(path.toString());
                     NginxBlockResolver<NgxConfig> resolver = new NginxBlockResolver<>(reader, path.getParent(), config);
                     includes.add(resolver.resolve());

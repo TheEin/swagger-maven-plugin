@@ -2,6 +2,7 @@ package com.github.kongchen.swagger.docgen.mavenplugin;
 
 import org.apache.maven.plugins.annotations.Parameter;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -15,6 +16,12 @@ public class NginxConfig {
     @Parameter(required = true)
     private String location;
 
+    @Parameter
+    private List<String> excludeLocations;
+
+    @Parameter
+    private List<NginxRewrite> additionalRewrites;
+
     /**
      * Templating properties
      */
@@ -27,6 +34,22 @@ public class NginxConfig {
 
     public void setLocation(String location) {
         this.location = location;
+    }
+
+    public List<String> getExcludeLocations() {
+        return excludeLocations;
+    }
+
+    public void setExcludeLocations(List<String> excludeLocations) {
+        this.excludeLocations = excludeLocations;
+    }
+
+    public List<NginxRewrite> getAdditionalRewrites() {
+        return additionalRewrites;
+    }
+
+    public void setAdditionalRewrites(List<NginxRewrite> additionalRewrites) {
+        this.additionalRewrites = additionalRewrites;
     }
 
     public Map<String, String> getProperties() {

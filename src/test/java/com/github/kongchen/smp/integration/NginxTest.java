@@ -3,6 +3,7 @@ package com.github.kongchen.smp.integration;
 import com.github.kongchen.swagger.docgen.mavenplugin.ApiDocumentMojo;
 import com.github.kongchen.swagger.docgen.mavenplugin.ApiSource;
 import com.github.kongchen.swagger.docgen.mavenplugin.NginxConfig;
+import com.github.kongchen.swagger.docgen.mavenplugin.NginxRewrite;
 import org.apache.commons.io.FileUtils;
 import org.apache.maven.plugin.testing.AbstractMojoTestCase;
 import org.testng.annotations.AfterMethod;
@@ -10,6 +11,7 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import java.io.File;
+import java.util.Collections;
 import java.util.HashMap;
 
 public class NginxTest extends AbstractMojoTestCase {
@@ -34,6 +36,8 @@ public class NginxTest extends AbstractMojoTestCase {
             apiSource.setSwaggerDirectory(swaggerOutputDir.getAbsolutePath());
             final NginxConfig nginxConfig = new NginxConfig();
             nginxConfig.setLocation("C:\\src\\rt\\tailored_crm_b2b_rt_hq\\balancer\\nginx\\nginx.conf");
+            nginxConfig.setAdditionalRewrites(Collections.singletonList(new NginxRewrite("^/OAPI/v2/rt/crm/(.*)$", "/openapi/internal/v2/rt/crm/$1")));
+            nginxConfig.setExcludeLocations(Collections.singletonList("balancer/nginx/frontends/rt-locations.conf"));
             HashMap<String, String> properties = new HashMap<>();
             properties.put("CAM_HOSTS", "127.0.0.1:26000");
             properties.put("CCMP_BACKEND_HOSTS", "127.0.0.1:26001");

@@ -1,5 +1,6 @@
 package com.github.kongchen.swagger.docgen.nginx;
 
+import com.github.kongchen.swagger.docgen.mavenplugin.NginxRewrite;
 import com.github.odiszapc.nginxparser.NgxBlock;
 import com.github.odiszapc.nginxparser.NgxConfig;
 import com.github.odiszapc.nginxparser.NgxEntry;
@@ -62,6 +63,12 @@ public class NginxLocationRewriter {
             this.opt = opt;
         }
 
+        public RewriteParams(NginxRewrite rewrite) {
+            regex = rewrite.getRegex();
+            replace = rewrite.getReplace();
+            opt = null;
+        }
+
         public RewriteParams(NgxParam rewrite) {
             Iterator<String> args = argsIterator(rewrite.getValues());
 
@@ -76,7 +83,7 @@ public class NginxLocationRewriter {
 
         @Override
         public String toString() {
-            return "regex = " + regex + ", replace = " + replace;
+            return "rewrite " + regex + " " + replace + " " + opt;
         }
     }
 
@@ -95,8 +102,8 @@ public class NginxLocationRewriter {
     private final String path;
     private final String markedPath;
     private final String httpMethod;
+    private final List<RewriteParams> unconditionalRewrites = new ArrayList<>();
     private final Deque<Iterator<NgxEntry>> steps = new LinkedList<>();
-    private final List<NgxParam> unconditionalRewrites = new ArrayList<>();
 
     private Iterator<NgxEntry> iterator;
     private NgxBlock location;
@@ -127,7 +134,7 @@ public class NginxLocationRewriter {
         };
     }
 
-    public NginxLocationRewriter(NgxConfig config, String path, String httpMethod, Operation operation) {
+    public NginxLocationRewriter(NgxConfig config, List<NginxRewrite> additionalRewrites, String path, String httpMethod, Operation operation) {
         if (path == null) {
             throw new NullPointerException("operationPath");
         }
@@ -139,6 +146,12 @@ public class NginxLocationRewriter {
         this.path = path;
         markedPath = PATH_ID.matcher(path).replaceAll(ID_MARK);
         this.httpMethod = httpMethod.toUpperCase();
+        if (additionalRewrites != null) {
+            additionalRewrites.stream()
+                    .map(RewriteParams::new)
+                    .map(NginxLocationRewriter::revertGlobalRewrite)
+                    .forEachOrdered(unconditionalRewrites::add);
+        }
     }
 
     public String revertPath() {
@@ -162,19 +175,18 @@ public class NginxLocationRewriter {
         } else if (prefixLocation != null) {
             revertedPath = revertPath(revertedPath, prefixRewrite, false);
         }
-        ListIterator<NgxParam> it = unconditionalRewrites.listIterator(unconditionalRewrites.size());
+        ListIterator<RewriteParams> it = unconditionalRewrites.listIterator(unconditionalRewrites.size());
         while (it.hasPrevious()) {
-            NgxParam rewrite = it.previous();
-            RewriteParams params = revertRewrite(new RewriteParams(rewrite));
+            RewriteParams rewrite = it.previous();
             Matcher matcher = Pattern
-                    .compile(params.regex.replace("/", "\\/"))
+                    .compile(rewrite.regex.replace("/", "\\/"))
                     .matcher(revertedPath);
             if (!matcher.matches()) {
                 LOGGER.debug("Unconditional rewrite wasn't matched: {}", rewrite);
             } else {
                 LOGGER.debug("Unconditional rewrite was matched: {}", rewrite);
                 StringBuffer sb = new StringBuffer();
-                matcher.appendReplacement(sb, params.replace).appendTail(sb);
+                matcher.appendReplacement(sb, rewrite.replace).appendTail(sb);
                 revertedPath = sb.toString();
                 LOGGER.debug("Unconditionally reverted path: {}", revertedPath);
             }
@@ -316,11 +328,22 @@ public class NginxLocationRewriter {
         }
     }
 
-    private RewriteParams revertRewrite(RewriteParams rewrite) {
+    private RewriteParams revertLocationRewrite(RewriteParams rewrite) {
+        return revertRewrite(locationUrl, rewrite);
+    }
+
+    private static RewriteParams revertGlobalRewrite(RewriteParams rewrite) {
+        return revertRewrite(null, rewrite);
+    }
+
+    private static RewriteParams revertRewrite(String locationUrl, RewriteParams rewrite) {
         List<Integer> replaceGroups = new ArrayList<>();
         String regex = revertReplace(rewrite.replace, replaceGroups);
         String replace;
         if (replaceGroups.isEmpty()) {
+            if (locationUrl == null) {
+                throw new IllegalStateException("Constant rewrite without location");
+            }
             if (locationUrl.indexOf('(') >= 0) {
                 throw new IllegalStateException("Replace and location both should be constant");
             }
@@ -426,11 +449,11 @@ public class NginxLocationRewriter {
 
     private void rewrite(NgxParam rewrite) {
         try {
+            RewriteParams params = revertLocationRewrite(new RewriteParams(rewrite));
             if (location == null) {
                 LOGGER.debug("Store unconditional rewrite: {}", rewrite);
-                unconditionalRewrites.add(rewrite);
+                unconditionalRewrites.add(params);
             } else {
-                RewriteParams params = revertRewrite(new RewriteParams(rewrite));
                 if (matchPath(params)) {
                     useMatchedLocation(params);
                     applyRewriteOption(params.opt);
@@ -470,7 +493,7 @@ public class NginxLocationRewriter {
 
     private void useMatchedLocation(RewriteParams rewrite) {
         if (locationType.prefix) {
-            if (prefixLocation == null || prefixLocationUrl.length() < locationRegex.length()) {
+            if (prefixLocation == null || prefixLocationUrl.length() < locationUrl.length()) {
                 setPrefixLocation(rewrite);
             }
         } else if (locationType.regex) {
@@ -487,7 +510,7 @@ public class NginxLocationRewriter {
     private void setPrefixLocation(RewriteParams rewrite) {
         prefixLocation = location;
         prefixLocationType = locationType;
-        prefixLocationUrl = locationRegex;
+        prefixLocationUrl = locationUrl;
         prefixRewrite = rewrite;
     }
 
