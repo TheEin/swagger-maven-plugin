@@ -169,11 +169,11 @@ public class NginxLocationRewriter {
         }
         String revertedPath = path;
         if (prefixLocation != null && prefixLocationType.noRegex) {
-            revertedPath = revertPath(revertedPath, prefixRewrite, false);
+            revertedPath = revertPath(revertedPath, prefixRewrite, prefixLocation, false);
         } else if (regexLocation != null) {
-            revertedPath = revertPath(revertedPath, regexRewrite, false);
+            revertedPath = revertPath(revertedPath, regexRewrite, regexLocation, false);
         } else if (prefixLocation != null) {
-            revertedPath = revertPath(revertedPath, prefixRewrite, false);
+            revertedPath = revertPath(revertedPath, prefixRewrite, prefixLocation, false);
         }
         ListIterator<RewriteParams> it = unconditionalRewrites.listIterator(unconditionalRewrites.size());
         while (it.hasPrevious()) {
@@ -195,8 +195,8 @@ public class NginxLocationRewriter {
         return revertedPath;
     }
 
-    private String revertPath(String path, RewriteParams rewrite, boolean optional) {
-        LOGGER.debug("Revert path {} with {}", path, rewrite);
+    private String revertPath(String path, RewriteParams rewrite, NgxBlock location, boolean optional) {
+        LOGGER.info("Revert path {} with {} in location {}", path, rewrite, location);
         Matcher matcher = Pattern
                 .compile(rewrite.regex.replace("/", "\\/"))
                 .matcher(path);
@@ -297,22 +297,17 @@ public class NginxLocationRewriter {
         while (args.hasNext()) {
             url.append(args.next());
         }
+        locationUrl = url.toString();
         if (locationType.regex) {
             normalizeRegex(url);
-        } else {
-            locationUrl = url.toString();
-            if (locationType.prefix) {
-                prefixToRegex(url);
-            }
+        } else if (locationType.prefix) {
+            prefixToRegex(url);
         }
         locationRegex = url.toString().replace(ID_REGEX, ID_MARK);
-        LOGGER.debug("Location URL: {}", locationRegex);
+        LOGGER.debug("Location URL: {}", locationUrl);
     }
 
     private static void prefixToRegex(StringBuilder url) {
-        if (url.charAt(url.length() - 1) != '/') {
-            url.append('/');
-        }
         url.append("(.*)");
     }
 
