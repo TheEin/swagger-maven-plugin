@@ -25,9 +25,11 @@ import io.swagger.core.filter.SpecFilter;
 import io.swagger.core.filter.SwaggerSpecFilter;
 import io.swagger.jaxrs.ext.SwaggerExtension;
 import io.swagger.jaxrs.ext.SwaggerExtensions;
+import io.swagger.models.Operation;
 import io.swagger.models.Path;
 import io.swagger.models.Scheme;
 import io.swagger.models.Swagger;
+import io.swagger.models.Tag;
 import io.swagger.models.auth.SecuritySchemeDefinition;
 import io.swagger.models.properties.Property;
 import io.swagger.util.Json;
@@ -37,13 +39,31 @@ import org.apache.commons.io.IOUtils;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugin.logging.Log;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Type;
 import java.net.MalformedURLException;
 import java.nio.charset.Charset;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.TreeMap;
 
 import static org.apache.commons.lang3.StringUtils.defaultString;
 import static org.apache.commons.lang3.StringUtils.isEmpty;
@@ -52,6 +72,9 @@ import static org.apache.commons.lang3.StringUtils.isEmpty;
  * @author chekong 05/13/2013
  */
 public abstract class AbstractDocumentSource<D extends AbstractReader & ClassSwaggerReader> {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(AbstractDocumentSource.class);
+
     protected final ApiSource apiSource;
     protected final Log LOG;
     protected final List<Type> typesToSkip = new ArrayList<Type>();
@@ -116,7 +139,27 @@ public abstract class AbstractDocumentSource<D extends AbstractReader & ClassSwa
 
         swagger = addSecurityDefinitions(swagger, apiSource);
 
+        removeEmptyTags();
+
         swagger = doFilter(swagger);
+    }
+
+    private void removeEmptyTags() {
+        Set<String> usage = new HashSet<>();
+
+        Optional.ofNullable(swagger.getPaths()).ifPresent(paths ->
+                paths.values().stream().map(Path::getOperations).filter(Objects::nonNull).forEach(operations ->
+                        operations.stream().map(Operation::getTags).filter(Objects::nonNull).forEach(usage::addAll)));
+
+        if (!usage.isEmpty() && swagger.getTags() != null) {
+            for (ListIterator<Tag> it = swagger.getTags().listIterator(); it.hasNext(); ) {
+                Tag tag = it.next();
+                if (tag.getName() != null && !usage.contains(tag.getName())) {
+                    LOGGER.info("Remove unused tag: {}", tag.getName());
+                    it.remove();
+                }
+            }
+        }
     }
 
     private Swagger doFilter(Swagger swagger) throws GenerateException {
@@ -321,7 +364,7 @@ public abstract class AbstractDocumentSource<D extends AbstractReader & ClassSwa
         }
         Map<String, Path> oldPathMap = result.getPaths();
         Map<String, Path> newPathMap = new HashMap<String, Path>();
-        for (Map.Entry<String, Path> entry: oldPathMap.entrySet()) {
+        for (Map.Entry<String, Path> entry : oldPathMap.entrySet()) {
             newPathMap.put(entry.getKey().replace(basePath, ""), entry.getValue());
         }
         result.setPaths(newPathMap);
@@ -425,7 +468,7 @@ public abstract class AbstractDocumentSource<D extends AbstractReader & ClassSwa
         } else {
             ClassSwaggerReader customApiReader = getCustomApiReader(customReaderClassName);
             if (customApiReader instanceof AbstractReader) {
-                ((AbstractReader)customApiReader).setOperationIdFormat(this.apiSource.getOperationIdFormat());
+                ((AbstractReader) customApiReader).setOperationIdFormat(this.apiSource.getOperationIdFormat());
             }
             return customApiReader;
         }
@@ -462,8 +505,7 @@ public abstract class AbstractDocumentSource<D extends AbstractReader & ClassSwa
                     } catch (NoSuchMethodException nsme) {
                         extension = (SwaggerExtension) Class.forName(clazz).newInstance();
                     }
-                }
-                catch (Exception e) {
+                } catch (Exception e) {
                     throw new GenerateException("Cannot load Swagger extension: " + clazz, e);
                 }
                 resolved.add(extension);

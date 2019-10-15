@@ -16,8 +16,11 @@ import java.util.Set;
  */
 public class MavenDocumentSource extends AbstractDocumentSource<JaxrsReader> {
 
-    public MavenDocumentSource(ApiSource apiSource, Log log, String encoding) throws MojoFailureException {
+    private final NginxConfig nginxConfig;
+
+    public MavenDocumentSource(ApiSource apiSource, NginxConfig nginxConfig, Log log, String encoding) throws MojoFailureException {
         super(log, apiSource, encoding);
+        this.nginxConfig = nginxConfig;
     }
 
     @Override
@@ -29,6 +32,6 @@ public class MavenDocumentSource extends AbstractDocumentSource<JaxrsReader> {
 
     @Override
     protected JaxrsReader createReader() {
-        return new NginxJaxrsReader(swagger, apiSource.getNginxConfig(), LOG);
+        return new NginxJaxrsReader(swagger, nginxConfig, LOG);
     }
 }

@@ -452,15 +452,15 @@
     </profiles>
 
     <distributionManagement>
-        <snapshotRepository>
-            <id>artifactory-maven-snapshots</id>
-            <name>artifactory-maven-snapshots</name>
-            <url>https://artifactory.nexign.com:443/artifactory/peterservice-snapshots</url>
-        </snapshotRepository>
         <repository>
-            <id>artifactory-maven-releases</id>
-            <name>artifactory-maven-releases</name>
+            <id>artifactory-peterservice-releases</id>
+            <name>artifactory-peterservice-releases</name>
             <url>https://artifactory.nexign.com:443/artifactory/peterservice-releases</url>
         </repository>
+        <snapshotRepository>
+            <id>artifactory-peterservice-snapshots</id>
+            <name>artifactory-peterservice-snapshots</name>
+            <url>https://artifactory.nexign.com:443/artifactory/peterservice-snapshots</url>
+        </snapshotRepository>
     </distributionManagement>
 </project>

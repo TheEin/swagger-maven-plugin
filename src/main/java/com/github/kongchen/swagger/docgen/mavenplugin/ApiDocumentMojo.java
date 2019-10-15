@@ -17,6 +17,7 @@ import org.apache.maven.project.MavenProjectHelper;
 import java.io.File;
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * User: kongchen
@@ -63,12 +64,23 @@ public class ApiDocumentMojo extends AbstractMojo {
     @Parameter(property = "file.encoding")
     private String encoding;
 
+    @Parameter
+    private NginxConfig nginxConfig;
+
     public List<ApiSource> getApiSources() {
         return apiSources;
     }
 
     public void setApiSources(List<ApiSource> apiSources) {
         this.apiSources = apiSources;
+    }
+
+    public NginxConfig getNginxConfig() {
+        return nginxConfig;
+    }
+
+    public void setNginxConfig(NginxConfig nginxConfig) {
+        this.nginxConfig = nginxConfig;
     }
 
     @Override
@@ -109,9 +121,14 @@ public class ApiDocumentMojo extends AbstractMojo {
 
             for (ApiSource apiSource : apiSources) {
                 validateConfiguration(apiSource);
-                AbstractDocumentSource documentSource = apiSource.isSpringmvc()
-                        ? new SpringMavenDocumentSource(apiSource, getLog(), projectEncoding)
-                        : new MavenDocumentSource(apiSource, getLog(), projectEncoding);
+                AbstractDocumentSource documentSource = apiSource.isSpringmvc() ?
+                        new SpringMavenDocumentSource(apiSource, getLog(), projectEncoding) :
+                        new MavenDocumentSource(
+                                apiSource,
+                                Optional.ofNullable(apiSource.getNginxConfig())
+                                        .orElseGet(this::getNginxConfig),
+                                getLog(),
+                                projectEncoding);
 
                 documentSource.loadTypesToSkip();
                 documentSource.loadModelModifier();

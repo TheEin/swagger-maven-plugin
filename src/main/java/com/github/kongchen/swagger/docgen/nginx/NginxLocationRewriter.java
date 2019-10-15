@@ -83,7 +83,11 @@ public class NginxLocationRewriter {
 
         @Override
         public String toString() {
-            return "rewrite " + regex + " " + replace + " " + opt;
+            String s = "rewrite " + regex + " " + replace;
+            if (opt != null && !opt.isEmpty()) {
+                s += " " + opt;
+            }
+            return s;
         }
     }
 
@@ -196,7 +200,7 @@ public class NginxLocationRewriter {
     }
 
     private String revertPath(String path, RewriteParams rewrite, NgxBlock location, boolean optional) {
-        LOGGER.info("Revert path {} with {} in location {}", path, rewrite, location);
+        LOGGER.info("Revert path {} with {} in {}", path, rewrite, location);
         Matcher matcher = Pattern
                 .compile(rewrite.regex.replace("/", "\\/"))
                 .matcher(path);

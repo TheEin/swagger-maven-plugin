@@ -22,6 +22,9 @@ public class NginxConfig {
     @Parameter
     private List<NginxRewrite> additionalRewrites;
 
+    @Parameter
+    private List<NginxTag> tags;
+
     /**
      * Templating properties
      */
@@ -50,6 +53,14 @@ public class NginxConfig {
 
     public void setAdditionalRewrites(List<NginxRewrite> additionalRewrites) {
         this.additionalRewrites = additionalRewrites;
+    }
+
+    public List<NginxTag> getTags() {
+        return tags;
+    }
+
+    public void setTags(List<NginxTag> tags) {
+        this.tags = tags;
     }
 
     public Map<String, String> getProperties() {

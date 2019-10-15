@@ -2,23 +2,48 @@ package com.github.kongchen.swagger.docgen.nginx;
 
 import com.github.kongchen.swagger.docgen.mavenplugin.NginxConfig;
 import com.github.kongchen.swagger.docgen.mavenplugin.NginxRewrite;
+import com.github.kongchen.swagger.docgen.mavenplugin.NginxTag;
 import com.github.kongchen.swagger.docgen.reader.JaxrsReader;
 import com.github.odiszapc.nginxparser.NgxConfig;
 import io.swagger.models.Operation;
 import io.swagger.models.Swagger;
+import io.swagger.models.Tag;
 import org.apache.maven.plugin.logging.Log;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.regex.Pattern;
 
 public class NginxJaxrsReader extends JaxrsReader {
+
+    private static class UrlTag {
+
+        public final Pattern url;
+        public final String name;
+
+        public UrlTag(Pattern url, String name) {
+            this.url = url;
+            this.name = name;
+        }
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(NginxJaxrsReader.class);
 
     private final NgxConfig config;
 
     private final List<NginxRewrite> additionalRewrites;
+
+    private final List<NginxTag> tags;
+
+    private final List<UrlTag> urlTags;
 
     public NginxJaxrsReader(Swagger swagger, NginxConfig nginxConfig, Log LOG) {
         super(swagger, LOG);
@@ -26,6 +51,8 @@ public class NginxJaxrsReader extends JaxrsReader {
         if (nginxConfig == null) {
             config = null;
             additionalRewrites = null;
+            tags = null;
+            urlTags = null;
         } else {
             try {
                 DirectoryStream.Filter<Path> excludeFilter = nginxConfig.getExcludeLocations() == null ? null :
@@ -40,10 +67,37 @@ public class NginxJaxrsReader extends JaxrsReader {
                 NginxConfigReader reader = new NginxConfigReader(excludeFilter, nginxConfig.getProperties());
                 config = reader.read(nginxConfig.getLocation());
                 additionalRewrites = nginxConfig.getAdditionalRewrites();
+                tags = nginxConfig.getTags();
+                urlTags = createUrlTags(tags);
             } catch (IOException e) {
                 throw new RuntimeException("Failed to load config", e);
             }
         }
+    }
+
+    private static List<UrlTag> createUrlTags(List<NginxTag> tags) {
+        List<UrlTag> urlTags = new ArrayList<>();
+        if (tags != null) {
+            for (NginxTag tag : tags) {
+                if (tag.getUrls() != null) {
+                    for (String url : tag.getUrls()) {
+                        urlTags.add(new UrlTag(Pattern.compile(url), tag.getName()));
+                    }
+                }
+            }
+        }
+        return urlTags;
+    }
+
+    @Override
+    public Swagger read(Set<Class<?>> classes) {
+        Swagger swagger = super.read(classes);
+        if (tags != null) {
+            tags.stream().map(NginxTag::getName)
+                    .filter(name -> swagger.getTag(name) == null)
+                    .forEach(name -> swagger.addTag(new Tag().name(name)));
+        }
+        return swagger;
     }
 
     @Override
@@ -57,7 +111,21 @@ public class NginxJaxrsReader extends JaxrsReader {
             if (config == null) {
                 return operationPath;
             }
-            return new NginxLocationRewriter(config, additionalRewrites, operationPath, httpMethod, operation).revertPath();
+            String revertedPath =
+                    new NginxLocationRewriter(config, additionalRewrites, operationPath, httpMethod, operation)
+                            .revertPath();
+            if (urlTags != null) {
+                for (UrlTag tag : urlTags) {
+                    if (tag.url.matcher(revertedPath).matches()) {
+                        if (LOGGER.isInfoEnabled()) {
+                            LOGGER.info("Set tag {} by matched URL {}", tag.name, tag.url.pattern());
+                        }
+                        operation.setTags(Collections.singletonList(tag.name));
+                        break;
+                    }
+                }
+            }
+            return revertedPath;
         } catch (Exception e) {
             throw new RuntimeException("Failed to revert path: "
                     + Optional.ofNullable(httpMethod)
