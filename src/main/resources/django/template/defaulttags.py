@@ -184,7 +184,7 @@ class ForNode(Node):
             for i, item in enumerate(values):
                 # Shortcuts for current loop iteration number.
                 loop_dict['counter0'] = i
-                loop_dict['counter'] = i + 1
+                loop_dict['Counter'] = i + 1
                 # Reverse counter iteration numbers.
                 loop_dict['revcounter'] = len_values - i
                 loop_dict['revcounter0'] = len_values - i - 1
