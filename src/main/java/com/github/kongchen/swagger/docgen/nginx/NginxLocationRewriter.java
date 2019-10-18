@@ -24,6 +24,7 @@ import static com.github.kongchen.swagger.docgen.nginx.NginxDirective.BREAK;
 import static com.github.kongchen.swagger.docgen.nginx.NginxDirective.LAST;
 import static com.github.kongchen.swagger.docgen.nginx.NginxDirective.LOCATION;
 import static com.github.kongchen.swagger.docgen.nginx.NginxDirective.REQUEST_METHOD;
+import static com.github.kongchen.swagger.docgen.nginx.NginxDirective.RETURN;
 import static com.github.kongchen.swagger.docgen.nginx.NginxDirective.REWRITE;
 
 public class NginxLocationRewriter {
@@ -107,13 +108,14 @@ public class NginxLocationRewriter {
     private final String markedPath;
     private final String httpMethod;
     private final List<RewriteParams> unconditionalRewrites = new ArrayList<>();
+    private final List<Pattern> notFoundLocations = new ArrayList<>();
     private final Deque<Iterator<NgxEntry>> steps = new LinkedList<>();
 
     private Iterator<NgxEntry> iterator;
     private NgxBlock location;
     private LocationType locationType;
     private String locationUrl;
-    private String locationRegex;
+    private Pattern locationRegex;
     private Iterator<NgxEntry> locationIterator;
     private NgxBlock prefixLocation;
     private LocationType prefixLocationType;
@@ -179,6 +181,22 @@ public class NginxLocationRewriter {
         } else if (prefixLocation != null) {
             revertedPath = revertPath(revertedPath, prefixRewrite, prefixLocation, false);
         }
+        for (Pattern notFoundLocation : notFoundLocations) {
+            if (notFoundLocation.matcher(revertedPath).matches()) {
+                if (LOGGER.isInfoEnabled()) {
+                    LOGGER.info("Use location {} to return 404 on path {}", notFoundLocation.pattern(), revertedPath);
+                }
+                revertedPath = path;
+                break;
+            }
+        }
+        applyUnconditionalRewrites(revertedPath);
+        LOGGER.info("Reverted path: {}", revertedPath);
+        return revertedPath;
+    }
+
+    private String applyUnconditionalRewrites(String path) {
+        String revertedPath = path;
         ListIterator<RewriteParams> it = unconditionalRewrites.listIterator(unconditionalRewrites.size());
         while (it.hasPrevious()) {
             RewriteParams rewrite = it.previous();
@@ -195,7 +213,6 @@ public class NginxLocationRewriter {
                 LOGGER.debug("Unconditionally reverted path: {}", revertedPath);
             }
         }
-        LOGGER.info("Reverted path: {}", revertedPath);
         return revertedPath;
     }
 
@@ -307,7 +324,10 @@ public class NginxLocationRewriter {
         } else if (locationType.prefix) {
             prefixToRegex(url);
         }
-        locationRegex = url.toString().replace(ID_REGEX, ID_MARK);
+        locationRegex = Pattern.compile(url.toString()
+                .replace(ID_REGEX, ID_MARK)
+                .replace("/", "\\/")
+        );
         LOGGER.debug("Location URL: {}", locationUrl);
     }
 
@@ -441,8 +461,11 @@ public class NginxLocationRewriter {
     }
 
     private void param(NgxParam param) {
-        if (param.getName().equals(REWRITE)) {
+        String name = param.getName();
+        if (name.equals(REWRITE)) {
             rewrite(param);
+        } else if (name.equals(RETURN)) {
+            ret(param);
         }
     }
 
@@ -465,6 +488,14 @@ public class NginxLocationRewriter {
         }
     }
 
+    private void ret(NgxParam ret) {
+        int code = Integer.parseInt(ret.getValue());
+        if (code == 404) {
+            LOGGER.debug("Store location with 404 return: {}", locationUrl);
+            notFoundLocations.add(locationRegex);
+        }
+    }
+
     private boolean matchPath(RewriteParams rewrite) {
         Matcher matcher = Pattern
                 .compile(rewrite.regex.replace("/", "\\/"))
@@ -477,9 +508,7 @@ public class NginxLocationRewriter {
             matcher.appendReplacement(sb, rewrite.replace).appendTail(sb);
             String result = sb.toString();
             LOGGER.debug("Result URL: {}", result);
-            matcher = Pattern
-                    .compile(locationRegex.replace("/", "\\/"))
-                    .matcher(result);
+            matcher = locationRegex.matcher(result);
             if (!matcher.matches()) {
                 LOGGER.debug("Path wasn't matched");
             } else {

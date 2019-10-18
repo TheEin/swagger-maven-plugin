@@ -4,6 +4,7 @@ import org.apache.maven.plugins.annotations.Parameter;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * nginx specific options
@@ -30,6 +31,25 @@ public class NginxConfig {
      */
     @Parameter
     private Map<String, String> properties;
+
+    public NginxConfig() {
+    }
+
+    public NginxConfig(NginxConfig config) {
+        location = config.location;
+        excludeLocations = config.excludeLocations;
+        additionalRewrites = config.additionalRewrites;
+        tags = config.tags;
+        properties = config.properties;
+    }
+
+    public void updateBy(NginxConfig config) {
+        Optional.ofNullable(config.location).ifPresent(this::setLocation);
+        Optional.ofNullable(config.excludeLocations).ifPresent(this::setExcludeLocations);
+        Optional.ofNullable(config.additionalRewrites).ifPresent(this::setAdditionalRewrites);
+        Optional.ofNullable(config.tags).ifPresent(this::setTags);
+        Optional.ofNullable(config.properties).ifPresent(this::setProperties);
+    }
 
     public String getLocation() {
         return location;

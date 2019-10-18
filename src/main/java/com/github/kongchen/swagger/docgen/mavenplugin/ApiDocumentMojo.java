@@ -17,7 +17,6 @@ import org.apache.maven.project.MavenProjectHelper;
 import java.io.File;
 import java.lang.reflect.Method;
 import java.util.List;
-import java.util.Optional;
 
 /**
  * User: kongchen
@@ -121,14 +120,17 @@ public class ApiDocumentMojo extends AbstractMojo {
 
             for (ApiSource apiSource : apiSources) {
                 validateConfiguration(apiSource);
+                NginxConfig config = getNginxConfig();
+                NginxConfig sourceConfig = apiSource.getNginxConfig();
+                if (config == null) {
+                    config = sourceConfig;
+                } else if (sourceConfig != null) {
+                    config = new NginxConfig(config);
+                    config.updateBy(sourceConfig);
+                }
                 AbstractDocumentSource documentSource = apiSource.isSpringmvc() ?
                         new SpringMavenDocumentSource(apiSource, getLog(), projectEncoding) :
-                        new MavenDocumentSource(
-                                apiSource,
-                                Optional.ofNullable(apiSource.getNginxConfig())
-                                        .orElseGet(this::getNginxConfig),
-                                getLog(),
-                                projectEncoding);
+                        new MavenDocumentSource(apiSource, config, getLog(), projectEncoding);
 
                 documentSource.loadTypesToSkip();
                 documentSource.loadModelModifier();
