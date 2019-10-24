@@ -9,7 +9,13 @@ import java.util.Optional;
 /**
  * nginx specific options
  */
-public class NginxConfig {
+public class NginxConfig implements Cloneable {
+
+    /**
+     * Is nginx config enabled
+     */
+    @Parameter(defaultValue = "true")
+    private boolean enabled = true;
 
     /**
      * Path to <b>nginx.conf</b>
@@ -32,23 +38,31 @@ public class NginxConfig {
     @Parameter
     private Map<String, String> properties;
 
-    public NginxConfig() {
+    @Override
+    public NginxConfig clone() {
+        try {
+            return (NginxConfig) super.clone();
+        } catch (CloneNotSupportedException e) {
+            throw new RuntimeException(e);
+        }
     }
 
-    public NginxConfig(NginxConfig config) {
-        location = config.location;
-        excludeLocations = config.excludeLocations;
-        additionalRewrites = config.additionalRewrites;
-        tags = config.tags;
-        properties = config.properties;
-    }
-
-    public void updateBy(NginxConfig config) {
+    public NginxConfig updateBy(NginxConfig config) {
+        enabled = config.enabled;
         Optional.ofNullable(config.location).ifPresent(this::setLocation);
         Optional.ofNullable(config.excludeLocations).ifPresent(this::setExcludeLocations);
         Optional.ofNullable(config.additionalRewrites).ifPresent(this::setAdditionalRewrites);
         Optional.ofNullable(config.tags).ifPresent(this::setTags);
         Optional.ofNullable(config.properties).ifPresent(this::setProperties);
+        return this;
+    }
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
     }
 
     public String getLocation() {

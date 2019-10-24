@@ -504,9 +504,14 @@ public class NginxLocationRewriter {
             LOGGER.debug("Rewrite wasn't matched: {}", rewrite);
         } else {
             LOGGER.debug("Rewrite was matched: {}", rewrite);
-            StringBuffer sb = new StringBuffer();
-            matcher.appendReplacement(sb, rewrite.replace).appendTail(sb);
-            String result = sb.toString();
+            String result;
+            if (matcher.groupCount() == 0) {
+                result = rewrite.replace;
+            } else {
+                StringBuffer sb = new StringBuffer();
+                matcher.appendReplacement(sb, rewrite.replace).appendTail(sb);
+                result = sb.toString();
+            }
             LOGGER.debug("Result URL: {}", result);
             matcher = locationRegex.matcher(result);
             if (!matcher.matches()) {

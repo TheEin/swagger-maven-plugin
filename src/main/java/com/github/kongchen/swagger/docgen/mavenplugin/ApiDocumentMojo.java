@@ -125,8 +125,7 @@ public class ApiDocumentMojo extends AbstractMojo {
                 if (config == null) {
                     config = sourceConfig;
                 } else if (sourceConfig != null) {
-                    config = new NginxConfig(config);
-                    config.updateBy(sourceConfig);
+                    config = config.clone().updateBy(sourceConfig);
                 }
                 AbstractDocumentSource documentSource = apiSource.isSpringmvc() ?
                         new SpringMavenDocumentSource(apiSource, getLog(), projectEncoding) :

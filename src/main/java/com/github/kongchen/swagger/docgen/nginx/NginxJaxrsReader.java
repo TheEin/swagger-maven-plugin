@@ -48,7 +48,7 @@ public class NginxJaxrsReader extends JaxrsReader {
     public NginxJaxrsReader(Swagger swagger, NginxConfig nginxConfig, Log LOG) {
         super(swagger, LOG);
 
-        if (nginxConfig == null) {
+        if (nginxConfig == null || !nginxConfig.isEnabled()) {
             config = null;
             additionalRewrites = null;
             tags = null;
