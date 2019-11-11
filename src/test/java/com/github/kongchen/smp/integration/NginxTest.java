@@ -11,14 +11,29 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import java.io.File;
-import java.util.Collections;
-import java.util.HashMap;
+import java.io.InputStream;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Properties;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 public class NginxTest extends AbstractMojoTestCase {
+
+    private final Pattern NL_DELIMITER = Pattern.compile("\n");
 
     private final File swaggerOutputDir = new File(getBasedir(), "target/test/nginx");
 
     private ApiDocumentMojo mojo;
+
+    private ClassLoader testClassLoader;
 
     @Override
     @BeforeMethod
@@ -29,45 +44,65 @@ public class NginxTest extends AbstractMojoTestCase {
             FileUtils.deleteDirectory(swaggerOutputDir);
         } catch (Exception ignore) {
         }
+        Properties properties = new Properties();
+        try (InputStream propertiesStream = getClass().getResourceAsStream(
+                getClass().getSimpleName() + ".properties")) {
+            properties.load(propertiesStream);
+        }
 
-        File testPom = new File("C:\\src\\rt\\tailored_crm_b2b_rt_hq\\composite-be\\composite-api\\pom.xml");
+        String projectPath = properties.getProperty("PROJECT_PATH");
+        assertNotNull("Project path was not specified", projectPath);
+        Path root = Paths.get(projectPath);
+        String classPath = properties.getProperty("CLASS_PATH");
+        testClassLoader = getClassLoader();
+        Optional.ofNullable(classPath).ifPresent(cp -> {
+            URL[] urls = NL_DELIMITER.splitAsStream(cp).map(path -> {
+                try {
+                    return root.resolve(path).toUri().toURL();
+                } catch (MalformedURLException e) {
+                    throw new RuntimeException(e);
+                }
+            }).toArray(URL[]::new);
+            Thread.currentThread().setContextClassLoader(new URLClassLoader(urls, testClassLoader));
+        });
+
+        File testPom = root.resolve(properties.getProperty("POM_PATH")).toFile();
         mojo = (ApiDocumentMojo) lookupMojo("generate", testPom);
         for (ApiSource apiSource : mojo.getApiSources()) {
             apiSource.setSwaggerDirectory(swaggerOutputDir.getAbsolutePath());
             final NginxConfig nginxConfig = new NginxConfig();
-            nginxConfig.setLocation("C:\\src\\rt\\tailored_crm_b2b_rt_hq\\balancer\\nginx\\nginx.conf");
-            nginxConfig.setAdditionalRewrites(Collections.singletonList(new NginxRewrite("^/OAPI/v2/rt/crm/(.*)$", "/openapi/internal/v2/rt/crm/$1")));
-            nginxConfig.setExcludeLocations(Collections.singletonList("balancer/nginx/frontends/rt-locations.conf"));
-            HashMap<String, String> properties = new HashMap<>();
-            properties.put("CAM_HOSTS", "127.0.0.1:26000");
-            properties.put("CCMP_BACKEND_HOSTS", "127.0.0.1:26001");
-            properties.put("CCM_HOSTS", "127.0.0.1:8888");
-            properties.put("CDI_RTK_HOSTS", "127.0.0.1:8888");
-            properties.put("CIM_HOSTS", "127.0.0.1:8888");
-            properties.put("COMPOSITE_HOSTS", "127.0.0.1:8888");
-            properties.put("COMPROV_HOSTS", "127.0.0.1:8888");
-            properties.put("COMSLA_HOSTS", "127.0.0.1:8888");
-            properties.put("COMSTR_HOSTS", "127.0.0.1:26001");
-            properties.put("COMSTR_INT_HOSTS", "127.0.0.1:26011");
-            properties.put("COM_CHAT_HOSTS", "127.0.0.1:8888");
-            properties.put("COM_HOSTS", "127.0.0.1:8888");
-            properties.put("COM_PLAN_HOSTS", "127.0.0.1:8888");
-            properties.put("COM_SOAP_HOSTS", "127.0.0.1:8888");
-            properties.put("COM_TMS_HOSTS", "127.0.0.1:8888");
-            properties.put("CPM_RTK_HOSTS", "127.0.0.1:8889");
-            properties.put("FILE_STORAGE_HOSTS", "127.0.0.1:8888");
-            properties.put("OUT_FE", "127.0.0.1:8888");
-            properties.put("OUT_SSO", "127.0.0.1:8888");
-            properties.put("SDM_HOSTS", "127.0.0.1:8888");
-            properties.put("SFA_HOSTS", "127.0.0.1:8888");
-            nginxConfig.setProperties(properties);
+            nginxConfig.setLocation(root.resolve(properties.getProperty("CFG_PATH")).toAbsolutePath().toString());
+            Optional.ofNullable(properties.getProperty("ADD_REWRITES"))
+                    .ifPresent(property -> {
+                        String[] args = NL_DELIMITER.split(property);
+                        List<NginxRewrite> rewrites = new ArrayList<>();
+                        for (int i = 0; i < args.length; ) {
+                            String r1 = args[i++];
+                            String r2 = args[i++];
+                            rewrites.add(new NginxRewrite(r1, r2));
+                        }
+                        nginxConfig.setAdditionalRewrites(rewrites);
+                    });
+            Optional.ofNullable(properties.getProperty("EXCLUDE_LOCATIONS"))
+                    .ifPresent(property -> {
+                        nginxConfig.setExcludeLocations(NL_DELIMITER
+                                .splitAsStream(property)
+                                .collect(Collectors.toList()));
+                    });
+            nginxConfig.setProperties(toMap(properties));
             apiSource.setNginxConfig(nginxConfig);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, String> toMap(Properties properties) {
+        return (Map) properties;
     }
 
     @Override
     @AfterMethod
     protected void tearDown() throws Exception {
+        Thread.currentThread().setContextClassLoader(testClassLoader);
         super.tearDown();
     }
 
