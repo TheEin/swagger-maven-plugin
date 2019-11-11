@@ -97,7 +97,7 @@ public class NginxLocationRewriter {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(NginxLocationRewriter.class);
 
-    private static final String ID_REGEX = "\\d+";
+    private static final Pattern ID_REGEX = Pattern.compile("\\\\d\\+|\\[\\^/]\\+");
     private static final Pattern PATH_ID = Pattern.compile("\\{\\w+}");
     private static final String ID_MARK = String.valueOf(RandomUtils.nextInt(1 << 30, Integer.MAX_VALUE));
     private static final Pattern REPLACE_GROUP = Pattern.compile("\\$(\\d+)");
@@ -324,10 +324,9 @@ public class NginxLocationRewriter {
         } else if (locationType.prefix) {
             prefixToRegex(url);
         }
-        locationRegex = Pattern.compile(url.toString()
-                .replace(ID_REGEX, ID_MARK)
-                .replace("/", "\\/")
-        );
+        locationRegex = Pattern.compile(
+                ID_REGEX.matcher(url).replaceAll(ID_MARK)
+                        .replace("/", "\\/"));
         LOGGER.debug("Location URL: {}", locationUrl);
     }
 
