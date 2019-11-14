@@ -18,6 +18,7 @@ import java.net.URLClassLoader;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -68,7 +69,14 @@ public class NginxTest extends AbstractMojoTestCase {
 
         File testPom = root.resolve(properties.getProperty("POM_PATH")).toFile();
         mojo = (ApiDocumentMojo) lookupMojo("generate", testPom);
+        Map<Object, Object> ctx = new HashMap<>();
+        mojo.setPluginContext(ctx);
+        List<ApiSource> apiSources = new ArrayList<>();
         for (ApiSource apiSource : mojo.getApiSources()) {
+            if (apiSource.getLocations().stream().anyMatch(s -> s.contains("${"))) {
+                continue;
+            }
+            apiSources.add(apiSource);
             apiSource.setSwaggerDirectory(swaggerOutputDir.getAbsolutePath());
             final NginxConfig nginxConfig = new NginxConfig();
             nginxConfig.setLocation(root.resolve(properties.getProperty("CFG_PATH")).toAbsolutePath().toString());
@@ -92,6 +100,7 @@ public class NginxTest extends AbstractMojoTestCase {
             nginxConfig.setProperties(toMap(properties));
             apiSource.setNginxConfig(nginxConfig);
         }
+        mojo.setApiSources(apiSources);
     }
 
     @SuppressWarnings("unchecked")
