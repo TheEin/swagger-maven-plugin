@@ -112,8 +112,8 @@ public class NginxJaxrsReader extends JaxrsReader {
                 return operationPath;
             }
             String revertedPath =
-                    new NginxLocationRewriter(config, additionalRewrites, operationPath, httpMethod, operation)
-                            .revertPath();
+                    new NginxLocationReverser(config, additionalRewrites, operationPath, httpMethod, operation)
+                            .process();
             if (urlTags != null) {
                 for (UrlTag tag : urlTags) {
                     if (tag.url.matcher(revertedPath).matches()) {
