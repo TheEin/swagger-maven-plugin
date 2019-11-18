@@ -78,7 +78,7 @@ public class NginxTest extends AbstractMojoTestCase {
             }
             apiSources.add(apiSource);
             apiSource.setSwaggerDirectory(swaggerOutputDir.getAbsolutePath());
-            final NginxConfig nginxConfig = new NginxConfig();
+            NginxConfig nginxConfig = apiSource.getNginxConfig();
             nginxConfig.setLocation(root.resolve(properties.getProperty("CFG_PATH")).toAbsolutePath().toString());
             Optional.ofNullable(properties.getProperty("ADD_REWRITES"))
                     .ifPresent(property -> {
@@ -97,7 +97,9 @@ public class NginxTest extends AbstractMojoTestCase {
                                 .splitAsStream(property)
                                 .collect(Collectors.toList()));
                     });
-            nginxConfig.setProperties(toMap(properties));
+            Map<String, String> nginxProperties = new HashMap<>(nginxConfig.getProperties());
+            nginxProperties.putAll(toMap(properties));
+            nginxConfig.setProperties(nginxProperties);
             apiSource.setNginxConfig(nginxConfig);
         }
         mojo.setApiSources(apiSources);
