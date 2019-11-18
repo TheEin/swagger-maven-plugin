@@ -28,6 +28,20 @@ import static com.github.kongchen.swagger.docgen.nginx.NginxDirective.REWRITE;
 
 public abstract class NginxLocationProcessor {
 
+    private static class Cursor {
+
+        public Cursor(NgxBlock block) {
+            this.block = block;
+            this.iterator = block.iterator();
+        }
+
+        public final NgxBlock block;
+        public final Iterator<NgxEntry> iterator;
+    }
+
+    private static class FinishProcessing extends RuntimeException {
+    }
+
     protected enum LocationType {
         PREFIX(null, true, false, false),
         NO_REGEX("^~", true, false, true),
@@ -83,15 +97,12 @@ public abstract class NginxLocationProcessor {
 
         @Override
         public String toString() {
-            String s = "rewrite " + regex + " " + replace;
+            String s = "Rewrite " + regex + " " + replace;
             if (opt != null && !opt.isEmpty()) {
                 s += " " + opt;
             }
             return s;
         }
-    }
-
-    private static class FinishProcessing extends RuntimeException {
     }
 
     private static final Logger LOGGER = LoggerFactory.getLogger(NginxLocationProcessor.class);
@@ -104,12 +115,12 @@ public abstract class NginxLocationProcessor {
     private final Operation operation;
     private final String httpMethod;
     private final List<Pattern> notFoundLocations = new ArrayList<>();
-    private final Deque<Iterator<NgxEntry>> steps = new LinkedList<>();
+    private final Deque<Cursor> breadcrumbs = new LinkedList<>();
 
-    private Iterator<NgxEntry> iterator;
+    private Cursor cursor;
+    private Cursor locationCursor;
     private NgxBlock location;
     private LocationType locationType;
-    private Iterator<NgxEntry> locationIterator;
 
     protected String path;
     protected String markedPath;
@@ -170,14 +181,14 @@ public abstract class NginxLocationProcessor {
 
     public String process() {
         LOGGER.info("Processing {} {}, operationId = {}", httpMethod, path, operation.getOperationId());
-        iterator = config.iterator();
+        cursor = new Cursor(config);
         try {
             do {
-                while (iterator.hasNext()) {
-                    entry(iterator.next());
+                while (cursor.iterator.hasNext()) {
+                    entry(cursor.iterator.next());
                 }
                 stepOut();
-            } while (iterator != null);
+            } while (cursor != null);
         } catch (FinishProcessing ignore) {
             // use locations were found
         }
@@ -198,10 +209,10 @@ public abstract class NginxLocationProcessor {
 
     protected String applyLocationRewrites(String path) {
         if (regexLocation != null && (prefixLocation == null || !prefixLocationType.noRegex)) {
-            LOGGER.info("Rewriting in location: {}", regexLocation);
+            LOGGER.info("Rewrite in location: {}", regexLocation);
             path = rewritePath(regexRewrite, path, false);
         } else if (prefixLocation != null) {
-            LOGGER.info("Rewriting in location : {}", prefixLocation);
+            LOGGER.info("Rewrite in location : {}", prefixLocation);
             path = rewritePath(prefixRewrite, path, false);
         }
         return path;
@@ -225,16 +236,16 @@ public abstract class NginxLocationProcessor {
         return sb.toString();
     }
 
-    private void stepIn(Iterator<NgxEntry> innerIterator) {
-        steps.push(iterator);
-        iterator = innerIterator;
+    private void stepIn(NgxBlock block) {
+        breadcrumbs.push(cursor);
+        cursor = new Cursor(block);
     }
 
     private void stepOut() {
-        if (locationIterator == iterator) {
+        if (locationCursor == cursor) {
             locationEnd();
         }
-        iterator = steps.poll();
+        cursor = breadcrumbs.poll();
     }
 
     private void entry(NgxEntry entry) {
@@ -252,7 +263,7 @@ public abstract class NginxLocationProcessor {
     }
 
     private void block(NgxBlock block) {
-        stepIn(block.iterator());
+        stepIn(block);
 
         if (block instanceof NgxConfig) {
             return;
@@ -267,15 +278,17 @@ public abstract class NginxLocationProcessor {
     }
 
     private void location(NgxBlock location) {
-        if (locationIterator != null) {
-            LOGGER.debug("Parent location: {}", this.location);
-            LOGGER.debug("Nested location: {}", location);
+        LOGGER.debug("Enter {}", location);
+        if (locationCursor != null) {
+            LOGGER.debug("Parent location: {}", locationCursor.block);
         }
         this.location = location;
         locationType = LocationType.PREFIX;
         locationRegex = null;
-        locationIterator = iterator;
-        identifyLocation();
+        locationCursor = cursor;
+        String regex = identifyLocation();
+        LOGGER.debug("Location regex: {}", regex);
+        locationRegex = Pattern.compile(regex);
         if (locationType.regex && regexLocation != null) {
             LOGGER.debug("Skipping regex location");
             stepOut();
@@ -283,13 +296,14 @@ public abstract class NginxLocationProcessor {
     }
 
     private void locationEnd() {
+        LOGGER.debug("Exit {}", location);
         location = null;
         locationType = null;
         locationRegex = null;
-        locationIterator = null;
+        locationCursor = null;
     }
 
-    protected void identifyLocation() {
+    protected String identifyLocation() {
         Iterator<String> args = location.getValues().iterator();
         if (!args.hasNext()) {
             throw new IllegalStateException("Useless location");
@@ -305,17 +319,17 @@ public abstract class NginxLocationProcessor {
                 break;
             }
         }
-        StringBuilder url = new StringBuilder(arg);
+        StringBuilder regex = new StringBuilder(arg);
         while (args.hasNext()) {
-            url.append(args.next());
+            regex.append(args.next());
         }
-        locationUrl = url.toString();
+        locationUrl = regex.toString();
         if (locationType.regex) {
-            normalizeRegex(url);
+            normalizeRegex(regex);
         } else if (locationType.prefix) {
-            prefixToRegex(url);
+            prefixToRegex(regex);
         }
-        LOGGER.debug("Location URL: {}", locationUrl);
+        return regex.toString();
     }
 
     private static void prefixToRegex(StringBuilder url) {
@@ -334,15 +348,15 @@ public abstract class NginxLocationProcessor {
         }
     }
 
-    private void ifBlock(NgxIfBlock block) {
-        Iterator<String> args = argsIterator(block.getValues());
+    private void ifBlock(NgxIfBlock ifBlock) {
+        LOGGER.debug("Evaluate {}", ifBlock);
+        Iterator<String> args = argsIterator(ifBlock.getValues());
         String var = args.next();
         String op = args.next();
         String arg = args.next();
         if (var == null) {
             throw new IllegalStateException("Useless if block");
         }
-
         if (var.equals(REQUEST_METHOD)) {
             if (op == null) {
                 throw new IllegalStateException("Unspecified operation");
@@ -354,10 +368,10 @@ public abstract class NginxLocationProcessor {
                 throw new IllegalStateException("Useless comparison");
             }
             if (!arg.equals(httpMethod)) {
-                LOGGER.debug("Condition wasn't matched: {}", block);
+                LOGGER.debug("Condition wasn't matched: {}", ifBlock);
                 stepOut();
             } else {
-                LOGGER.debug("Condition was matched: {}", block);
+                LOGGER.debug("Condition was matched: {}", ifBlock);
             }
         }
     }
@@ -372,6 +386,7 @@ public abstract class NginxLocationProcessor {
     }
 
     private void rewrite(NgxParam rewrite) {
+        LOGGER.debug("Found {}", rewrite);
         try {
             RewriteParams params = identifyRewrite(new RewriteParams(rewrite));
             if (location == null) {
@@ -397,6 +412,7 @@ public abstract class NginxLocationProcessor {
     protected abstract boolean matchRewrite(RewriteParams rewrite);
 
     private void ret(NgxParam ret) {
+        LOGGER.debug("Found ret {}", ret);
         int code = Integer.parseInt(ret.getValue());
         if (code == 404) {
             LOGGER.debug("Store location with 404 return: {}", locationUrl);

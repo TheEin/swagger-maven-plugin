@@ -56,11 +56,10 @@ public class NginxLocationReverser extends NginxLocationProcessor {
     }
 
     @Override
-    protected void identifyLocation() {
-        super.identifyLocation();
-        locationRegex = Pattern.compile(
-                ID_REGEX.matcher(locationUrl).replaceAll(ID_MARK)
-                        .replace("/", "\\/"));
+    protected String identifyLocation() {
+        String regex = super.identifyLocation();
+        return ID_REGEX.matcher(regex).replaceAll(ID_MARK)
+                .replace("/", "\\/");
     }
 
     @Override

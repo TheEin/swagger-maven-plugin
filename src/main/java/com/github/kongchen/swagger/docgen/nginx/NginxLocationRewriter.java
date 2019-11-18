@@ -37,10 +37,9 @@ public class NginxLocationRewriter extends NginxLocationProcessor {
     }
 
     @Override
-    protected void identifyLocation() {
-        super.identifyLocation();
-        locationRegex = Pattern.compile(
-                locationUrl.replace("/", "\\/"));
+    protected String identifyLocation() {
+        String regex = super.identifyLocation();
+        return regex.replace("/", "\\/");
     }
 
     @Override
