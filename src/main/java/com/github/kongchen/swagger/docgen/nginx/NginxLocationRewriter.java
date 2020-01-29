@@ -37,6 +37,13 @@ public class NginxLocationRewriter extends NginxLocationProcessor {
     }
 
     @Override
+    protected String rewritePath(RewriteParams rewrite, String path, boolean optional) {
+        String r = ID_REGEX.matcher(rewrite.regex).replaceAll(".*");
+        RewriteParams p = new RewriteParams(r, rewrite.replace, rewrite.opt);
+        return super.rewritePath(p, path, optional);
+    }
+
+    @Override
     protected String identifyLocation() {
         String regex = super.identifyLocation();
         return regex.replace("/", "\\/");

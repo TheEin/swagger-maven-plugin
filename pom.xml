@@ -4,7 +4,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.nexign.maven</groupId>
     <artifactId>swagger-maven-plugin</artifactId>
-    <version>3.1.15</version>
+    <version>3.1.16</version>
     <packaging>maven-plugin</packaging>
     <name>Swagger Maven Plugin</name>
     <description>

@@ -16,7 +16,6 @@ public class NginxLocationReverser extends NginxLocationProcessor {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(NginxLocationReverser.class);
 
-    private static final Pattern ID_REGEX = Pattern.compile("\\\\d\\+|\\[\\^/]\\+");
     private static final Pattern REPLACE_GROUP = Pattern.compile("\\$(\\d+)");
 
     private final List<RewriteParams> unconditionalRewrites = new ArrayList<>();
@@ -162,6 +161,7 @@ public class NginxLocationReverser extends NginxLocationProcessor {
             if (groupIdx < 0) {
                 throw new IllegalStateException("Replace group not found for match index " + matchIdx);
             }
+            ++matchIdx;
             sb.append('$').append(++groupIdx);
             lb = regex.indexOf('(', ++rb);
         } while (lb > 0);

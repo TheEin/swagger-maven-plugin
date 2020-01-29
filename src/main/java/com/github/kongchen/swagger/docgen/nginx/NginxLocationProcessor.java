@@ -109,6 +109,7 @@ public abstract class NginxLocationProcessor {
 
     private static final Pattern PATH_ID = Pattern.compile("\\{\\w+}");
 
+    protected static final Pattern ID_REGEX = Pattern.compile("\\\\d\\+|\\[\\^/]\\+");
     protected static final String ID_MARK = String.valueOf(RandomUtils.nextInt(1 << 30, Integer.MAX_VALUE));
 
     private final NgxConfig config;
@@ -218,7 +219,7 @@ public abstract class NginxLocationProcessor {
         return path;
     }
 
-    private String rewritePath(RewriteParams rewrite, String path, boolean optional) {
+    protected String rewritePath(RewriteParams rewrite, String path, boolean optional) {
         LOGGER.info("{} on path {}", rewrite, path);
         Matcher matcher = Pattern
                 .compile(rewrite.regex.replace("/", "\\/"))

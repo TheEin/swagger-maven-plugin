@@ -11,8 +11,10 @@ import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -28,7 +30,7 @@ public class NginxBlockResolver<T extends NgxBlock> {
 
     private static final String INCLUDE = "include";
 
-    private static final Pattern ABSOLUTE_PATH = Pattern.compile("^(/|[A-Z]:\\\\)");
+    private static final Pattern ABSOLUTE_PATH = Pattern.compile("^(((/|[A-Z]:\\\\)(.*[/\\\\]))([^/\\\\]+)$)");
 
     private static final Pattern RELATIVE_PATH = Pattern.compile("(.*[/\\\\])([^/\\\\]+)$");
 
@@ -73,40 +75,75 @@ public class NginxBlockResolver<T extends NgxBlock> {
     }
 
     private void include(String value) throws IOException {
-        if (ABSOLUTE_PATH.matcher(value).find()) {
-            LOGGER.debug("Removing absolute include directive: {}", value);
-            iterator.remove();
+        Matcher matcher = ABSOLUTE_PATH.matcher(value);
+        if (matcher.find()) {
+            LOGGER.debug("Resolving absolute include directive: {}", value);
+            String absolute = matcher.group(2);
+            String filter = matcher.group(5);
+            Path path = Paths.get(absolute);
+            Path tail = path;
+            while (!Files.isDirectory(path)) {
+                tail = removeRoot(tail);
+                if (tail == null) {
+                    break;
+                }
+                path = dir.resolve(tail);
+            }
+            if (tail == null) {
+                LOGGER.debug("Unresolved include: {}", value);
+                iterator.remove();
+            } else {
+                include(path, filter);
+            }
         } else {
-            Matcher matcher = RELATIVE_PATH.matcher(value);
+            matcher = RELATIVE_PATH.matcher(value);
             if (!matcher.matches()) {
                 throw new IOException("Failed to match relative path: " + value);
             }
             LOGGER.debug("Resolving relative include directive: {}", value);
             String relative = matcher.group(1);
             String filter = matcher.group(2);
-            try (DirectoryStream<Path> paths = Files.newDirectoryStream(dir.resolve(relative), filter)) {
-                ArrayList<NgxConfig> includes = new ArrayList<>();
-                for (Path path : paths) {
-                    if (reader.getExcludeFilter().accept(path)) {
-                        LOGGER.debug("Skipping include: {}", path);
-                        continue;
-                    }
-                    NgxConfig config = reader.read(path.toString());
-                    NginxBlockResolver<NgxConfig> resolver = new NginxBlockResolver<>(reader, path.getParent(), config);
-                    includes.add(resolver.resolve());
+            include(dir.resolve(relative), filter);
+        }
+    }
+
+    private void include(Path path, String filter) throws IOException {
+        LOGGER.debug("Scanning directory: {}", path);
+        try (DirectoryStream<Path> children = Files.newDirectoryStream(path, filter)) {
+            ArrayList<NgxConfig> includes = new ArrayList<>();
+            for (Path child : children) {
+                if (reader.getExcludeFilter().accept(child)) {
+                    LOGGER.debug("Skipping include: {}", child);
+                    continue;
                 }
-                if (includes.isEmpty()) {
-                    LOGGER.warn("None files matched: {}/{}", dir, value);
-                    iterator.remove();
-                } else if (includes.size() == 1) {
-                    iterator.replace(includes.get(0));
-                } else {
-                    NgxBlock includesBlock = new NgxBlock();
-                    includesBlock.addValue(INCLUDE);
-                    includes.forEach(includesBlock::addEntry);
-                    iterator.replace(includesBlock);
-                }
+                NgxConfig config = reader.read(child.toString());
+                NginxBlockResolver<NgxConfig> resolver = new NginxBlockResolver<>(reader, child.getParent(), config);
+                includes.add(resolver.resolve());
+            }
+            if (includes.isEmpty()) {
+                LOGGER.warn("None files matched for path: {}", path);
+                iterator.remove();
+            } else if (includes.size() == 1) {
+                iterator.replace(includes.get(0));
+            } else {
+                NgxBlock includesBlock = new NgxBlock();
+                includesBlock.addValue(INCLUDE);
+                includes.forEach(includesBlock::addEntry);
+                iterator.replace(includesBlock);
             }
         }
+    }
+
+    private Path removeRoot(Path path) {
+        Iterator<Path> it = path.iterator();
+        it.next(); // skip root
+        if (!it.hasNext()) {
+            return null;
+        }
+        Path p = it.next();
+        while (it.hasNext()) {
+            p = p.resolve(it.next());
+        }
+        return p;
     }
 }
