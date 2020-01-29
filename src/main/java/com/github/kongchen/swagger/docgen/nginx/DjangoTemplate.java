@@ -39,10 +39,12 @@ public class DjangoTemplate {
     }
 
     public static String buildContext(Map<String, String> context) {
-        return new PyStringMap(context.entrySet().stream()
-                .collect(Collectors.toMap(
-                        Map.Entry::getKey,
-                        e -> new PyString(e.getValue()))))
+        return Optional.ofNullable(context)
+                .map(map -> new PyStringMap(map.entrySet().stream()
+                        .collect(Collectors.toMap(
+                                Map.Entry::getKey,
+                                e -> new PyString(e.getValue())))))
+                .orElse(new PyStringMap())
                 .toString();
     }
 
