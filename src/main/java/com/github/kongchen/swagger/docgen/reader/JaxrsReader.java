@@ -2,8 +2,6 @@ package com.github.kongchen.swagger.docgen.reader;
 
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.As;
-import com.github.kongchen.swagger.docgen.jaxrs.BeanParamInjectParamExtension;
-import com.github.kongchen.swagger.docgen.jaxrs.JaxrsParameterExtension;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiResponses;
@@ -13,7 +11,6 @@ import io.swagger.annotations.SwaggerDefinition;
 import io.swagger.converter.ModelConverters;
 import io.swagger.jaxrs.ext.SwaggerExtension;
 import io.swagger.jaxrs.ext.SwaggerExtensions;
-import io.swagger.jersey.SwaggerJerseyJaxrs;
 import io.swagger.models.ArrayModel;
 import io.swagger.models.Model;
 import io.swagger.models.ModelImpl;
@@ -67,15 +64,6 @@ public class JaxrsReader extends AbstractReader implements ClassSwaggerReader {
 
     public JaxrsReader(Swagger swagger, Log LOG) {
         super(swagger, LOG);
-    }
-
-    @Override
-    protected void updateExtensionChain() {
-        List<SwaggerExtension> extensions = new ArrayList<>();
-        extensions.add(new BeanParamInjectParamExtension(this));
-        extensions.add(new SwaggerJerseyJaxrs());
-        extensions.add(new JaxrsParameterExtension());
-        SwaggerExtensions.setExtensions(extensions);
     }
 
     @Override

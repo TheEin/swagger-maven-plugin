@@ -2,14 +2,20 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
+
     <groupId>com.nexign.maven</groupId>
     <artifactId>swagger-maven-plugin</artifactId>
     <version>3.1.16</version>
-    <packaging>maven-plugin</packaging>
+
+    <packaging>pom</packaging>
     <name>Swagger Maven Plugin</name>
     <description>
         A maven build plugin which helps you generate API document during build phase
     </description>
+
+    <modules>
+        <module>swagger-annotations-extensions</module>
+    </modules>
 
     <properties>
         <!-- Settings -->
@@ -275,6 +281,12 @@
             <groupId>org.codehaus.plexus</groupId>
             <artifactId>plexus-component-metadata</artifactId>
             <version>${version.plexus-component-metadata}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.nexign.maven</groupId>
+            <artifactId>swagger-annotations-extensions</artifactId>
+            <version>${project.version}</version>
         </dependency>
     </dependencies>
 

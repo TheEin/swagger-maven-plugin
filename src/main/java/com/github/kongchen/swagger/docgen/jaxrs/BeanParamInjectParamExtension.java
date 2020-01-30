@@ -1,5 +1,6 @@
 package com.github.kongchen.swagger.docgen.jaxrs;
 
+import com.github.kongchen.swagger.docgen.ReaderAware;
 import com.github.kongchen.swagger.docgen.reader.AbstractReader;
 import com.github.kongchen.swagger.docgen.reader.JaxrsReader;
 import com.google.common.collect.Lists;
@@ -24,12 +25,13 @@ import java.util.Set;
  *
  * @author chekong on 15/5/9.
  */
-public class BeanParamInjectParamExtension extends AbstractSwaggerExtension {
+public class BeanParamInjectParamExtension extends AbstractSwaggerExtension implements ReaderAware {
 
 
     private AbstractReader reader;
 
-    public BeanParamInjectParamExtension(AbstractReader reader) {
+    @Override
+    public void setReader(AbstractReader reader) {
         this.reader = reader;
     }
 
