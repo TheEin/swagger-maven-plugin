@@ -3,290 +3,177 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.nexign.maven</groupId>
-    <artifactId>swagger-maven-plugin</artifactId>
-    <version>3.1.16</version>
+    <parent>
+        <groupId>com.nexign.maven</groupId>
+        <artifactId>swagger-maven-nexign</artifactId>
+        <version>3.1.16</version>
+    </parent>
 
+    <artifactId>swagger-maven-plugin</artifactId>
     <packaging>pom</packaging>
+
     <name>Swagger Maven Plugin</name>
+
     <description>
         A maven build plugin which helps you generate API document during build phase
     </description>
-
-    <modules>
-        <module>swagger-annotations-extensions</module>
-    </modules>
-
-    <properties>
-        <!-- Settings -->
-        <java.version>1.6</java.version>
-        <maven.compiler.source>1.8</maven.compiler.source>
-        <maven.compiler.target>1.8</maven.compiler.target>
-        <maven.javadoc.failOnError>false</maven.javadoc.failOnError>
-        <github.global.server>github</github.global.server>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-
-        <!-- Dependency versions -->
-        <maven.version>2.2.1</maven.version>
-        <swagger.version>1.5.21</swagger.version>
-        <jackson.version>2.8.9</jackson.version>
-        <log4j.version>1.2.16</log4j.version>
-        <handlebars.version>1.3.2</handlebars.version>
-        <commons-io.version>2.0.1</commons-io.version>
-        <reflections.version>0.9.9</reflections.version>
-        <springframework.version>4.3.7.RELEASE</springframework.version>
-        <commons-lang3.version>3.9</commons-lang3.version>
-        <version.jersey-server>1.13</version.jersey-server>
-        <version.javax.ws.rs-api>2.0.1</version.javax.ws.rs-api>
-        <version.maven-plugin-annotations>3.3</version.maven-plugin-annotations>
-        <nginxparser.version>0.9.3</nginxparser.version>
-        <jython.version>2.7.1</jython.version>
-
-        <!-- Test dependency versions -->
-        <maven-testing-harness.version>1.3</maven-testing-harness.version>
-        <testng.version>6.8.8</testng.version>
-        <jettison.version>1.3.3</jettison.version>
-        <json-unit.version>1.17.0</json-unit.version>
-        <version.mockito-core>2.18.3</version.mockito-core>
-        <version.hamcrest-library>1.3</version.hamcrest-library>
-        <version.jaxb>2.3.1</version.jaxb>
-
-        <!-- Plugin versions -->
-        <version.maven-release-plugin>2.5.3</version.maven-release-plugin>
-        <version.plexus-component-metadata>2.0.0</version.plexus-component-metadata>
-        <version.maven-compiler-plugin>2.3.2</version.maven-compiler-plugin>
-        <version.maven-plugin-plugin>3.6.0</version.maven-plugin-plugin>
-        <version.animal-sniffer-plugin>1.18</version.animal-sniffer-plugin>
-        <version.maven-source-plugin>2.1.2</version.maven-source-plugin>
-        <version.maven-javadoc-plugin>2.7</version.maven-javadoc-plugin>
-        <version.maven-gpg-plugin>1.6</version.maven-gpg-plugin>
-        <version.plexus-javadoc>1.0</version.plexus-javadoc>
-        <version.slf4j>1.7.25</version.slf4j>
-        <kotlin.version>1.2.61</kotlin.version>
-    </properties>
 
     <dependencies>
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-simple</artifactId>
-            <version>${version.slf4j}</version>
-            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>com.github.odiszapc</groupId>
             <artifactId>nginxparser</artifactId>
-            <version>${nginxparser.version}</version>
         </dependency>
         <dependency>
             <groupId>org.python</groupId>
             <artifactId>jython-standalone</artifactId>
-            <version>${jython.version}</version>
         </dependency>
 
         <dependency>
             <groupId>javax.xml.bind</groupId>
             <artifactId>jaxb-api</artifactId>
-            <version>${version.jaxb}</version>
-            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>com.sun.xml.bind</groupId>
             <artifactId>jaxb-impl</artifactId>
-            <version>${version.jaxb}</version>
-            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.maven</groupId>
             <artifactId>maven-artifact</artifactId>
-            <version>${maven.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.maven</groupId>
             <artifactId>maven-plugin-api</artifactId>
-            <version>${maven.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.maven</groupId>
             <artifactId>maven-project</artifactId>
-            <version>${maven.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.maven</groupId>
             <artifactId>maven-model</artifactId>
-            <version>${maven.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.maven</groupId>
             <artifactId>maven-core</artifactId>
-            <version>${maven.version}</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.slf4j</groupId>
-                    <artifactId>slf4j-nop</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.slf4j</groupId>
-                    <artifactId>slf4j-jdk14</artifactId>
-                </exclusion>
-            </exclusions>
         </dependency>
 
         <dependency>
             <groupId>com.github.jknack</groupId>
             <artifactId>handlebars</artifactId>
-            <version>${handlebars.version}</version>
         </dependency>
 
         <dependency>
             <groupId>io.swagger</groupId>
             <artifactId>swagger-jaxrs</artifactId>
-            <version>${swagger.version}</version>
         </dependency>
         <dependency>
             <groupId>io.swagger</groupId>
             <artifactId>swagger-servlet</artifactId>
-            <version>${swagger.version}</version>
         </dependency>
         <dependency>
             <groupId>org.reflections</groupId>
             <artifactId>reflections</artifactId>
-            <version>${reflections.version}</version>
         </dependency>
         <dependency>
             <groupId>commons-io</groupId>
             <artifactId>commons-io</artifactId>
-            <version>${commons-io.version}</version>
         </dependency>
         <dependency>
             <groupId>log4j</groupId>
             <artifactId>log4j</artifactId>
-            <version>${log4j.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
-            <version>${commons-lang3.version}</version>
         </dependency>
 
         <dependency>
             <groupId>javax.ws.rs</groupId>
             <artifactId>javax.ws.rs-api</artifactId>
-            <version>${version.javax.ws.rs-api}</version>
         </dependency>
         <dependency>
             <groupId>io.swagger</groupId>
             <artifactId>swagger-jersey-jaxrs</artifactId>
-            <version>${swagger.version}</version>
         </dependency>
         <dependency>
             <groupId>com.sun.jersey</groupId>
             <artifactId>jersey-server</artifactId>
-            <version>${version.jersey-server}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.maven.plugin-tools</groupId>
             <artifactId>maven-plugin-annotations</artifactId>
-            <version>${version.maven-plugin-annotations}</version>
-            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-context</artifactId>
-            <version>${springframework.version}</version>
         </dependency>
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-web</artifactId>
-            <version>${springframework.version}</version>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
-            <version>${jackson.version}</version>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>${jackson.version}</version>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.module</groupId>
             <artifactId>jackson-module-jaxb-annotations</artifactId>
-            <version>${jackson.version}</version>
         </dependency>
 
         <!-- Test dependencies -->
         <dependency>
             <groupId>org.testng</groupId>
             <artifactId>testng</artifactId>
-            <version>${testng.version}</version>
-            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.maven.plugin-testing</groupId>
             <artifactId>maven-plugin-testing-harness</artifactId>
-            <version>${maven-testing-harness.version}</version>
-            <scope>test</scope>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.slf4j</groupId>
-                    <artifactId>slf4j-nop</artifactId>
-                </exclusion>
-            </exclusions>
         </dependency>
 
         <dependency>
             <groupId>net.javacrumbs.json-unit</groupId>
             <artifactId>json-unit</artifactId>
-            <version>${json-unit.version}</version>
-            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>net.javacrumbs.json-unit</groupId>
             <artifactId>json-unit-core</artifactId>
-            <version>${json-unit.version}</version>
-            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.codehaus.jettison</groupId>
             <artifactId>jettison</artifactId>
-            <version>${jettison.version}</version>
-            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.mockito</groupId>
             <artifactId>mockito-core</artifactId>
-            <version>${version.mockito-core}</version>
-            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.hamcrest</groupId>
             <artifactId>hamcrest-library</artifactId>
-            <version>${version.hamcrest-library}</version>
-            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-nop</artifactId>
-            <version>${version.slf4j}</version>
-            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.jetbrains.kotlin</groupId>
             <artifactId>kotlin-stdlib-jdk8</artifactId>
-            <version>${kotlin.version}</version>
-            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.codehaus.plexus</groupId>
             <artifactId>plexus-component-metadata</artifactId>
-            <version>${version.plexus-component-metadata}</version>
         </dependency>
 
         <dependency>
             <groupId>com.nexign.maven</groupId>
             <artifactId>swagger-annotations-extensions</artifactId>
-            <version>${project.version}</version>
         </dependency>
     </dependencies>
 
@@ -462,17 +349,4 @@
             </build>
         </profile>
     </profiles>
-
-    <distributionManagement>
-        <repository>
-            <id>artifactory-peterservice-releases</id>
-            <name>artifactory-peterservice-releases</name>
-            <url>https://artifactory.nexign.com:443/artifactory/peterservice-releases</url>
-        </repository>
-        <snapshotRepository>
-            <id>artifactory-peterservice-snapshots</id>
-            <name>artifactory-peterservice-snapshots</name>
-            <url>https://artifactory.nexign.com:443/artifactory/peterservice-snapshots</url>
-        </snapshotRepository>
-    </distributionManagement>
 </project>

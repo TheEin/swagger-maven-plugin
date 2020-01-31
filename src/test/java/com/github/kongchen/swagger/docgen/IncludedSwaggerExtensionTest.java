@@ -33,7 +33,9 @@ public class IncludedSwaggerExtensionTest {
         //TODO: Maybe use a Classpath Scanner to automatically figure out the included extensions?
         SWAGGER_EXTENSIONS.add(new JaxrsParameterExtension());
         SWAGGER_EXTENSIONS.add(new SpringSwaggerExtension(new SystemStreamLog()));
-        SWAGGER_EXTENSIONS.add(new BeanParamInjectParamExtension(mock(JaxrsReader.class)));
+        BeanParamInjectParamExtension beanParamInjectParamExtension = new BeanParamInjectParamExtension();
+        beanParamInjectParamExtension.setReader(mock(JaxrsReader.class));
+        SWAGGER_EXTENSIONS.add(beanParamInjectParamExtension);
     }
 
     @Test
