@@ -10,7 +10,7 @@
     </parent>
 
     <artifactId>swagger-maven-plugin</artifactId>
-    <packaging>pom</packaging>
+    <packaging>maven-plugin</packaging>
 
     <name>Swagger Maven Plugin</name>
 
