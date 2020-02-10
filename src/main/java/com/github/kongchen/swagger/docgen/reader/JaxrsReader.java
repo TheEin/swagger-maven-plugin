@@ -34,6 +34,7 @@ import org.reflections.Reflections;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.annotation.AnnotationUtils;
+import org.springframework.web.bind.annotation.RequestMapping;
 
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
@@ -46,6 +47,7 @@ import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
@@ -56,6 +58,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 public class JaxrsReader extends AbstractReader implements ClassSwaggerReader {
@@ -82,13 +85,49 @@ public class JaxrsReader extends AbstractReader implements ClassSwaggerReader {
         return read(cls, "", null, false, new String[0], new String[0], new HashMap<String, Tag>(), new ArrayList<Parameter>());
     }
 
+    protected String resolveApiPath(Class<?> cls) {
+        return Optional.ofNullable(AnnotationUtils.findAnnotation(cls, Path.class))
+                .map(Path::value)
+                .orElseGet(() -> Optional.ofNullable(AnnotationUtils.findAnnotation(cls, RequestMapping.class))
+                        .map(RequestMapping::path)
+                        .flatMap(paths -> Arrays.stream(paths).findFirst())
+                        .orElse(null));
+    }
+
+    protected String resolveMethodPath(Method method) {
+        return Optional.ofNullable(AnnotationUtils.findAnnotation(method, Path.class))
+                .map(Path::value)
+                .orElseGet(() -> findRequestMappingPath(method));
+    }
+
+    protected String findRequestMappingPath(Method method) {
+        for (Annotation annotation : AnnotationUtils.getAnnotations(method)) {
+            Object path = AnnotationUtils.getValue(annotation, "path");
+            if (path != null) {
+                Class<?> cls = path.getClass();
+                if (cls.isArray()) {
+                    if (Array.getLength(path) == 0) {
+                        continue;
+                    }
+                    Object p = Array.get(path, 0);
+                    if (p == null) {
+                        continue;
+                    }
+                    path = p;
+                }
+                return String.valueOf(path);
+            }
+        }
+        return null;
+    }
+
     protected Swagger read(Class<?> cls, String parentPath, String parentMethod, boolean readHidden, String[] parentConsumes,
                            String[] parentProduces, Map<String, Tag> parentTags, List<Parameter> parentParameters) {
         if (swagger == null) {
             swagger = new Swagger();
         }
         Api api = AnnotationUtils.findAnnotation(cls, Api.class);
-        Path apiPath = AnnotationUtils.findAnnotation(cls, Path.class);
+        String apiPath = resolveApiPath(cls);
 
         // only read if allowing hidden apis OR api is not marked as hidden
         if (!canReadApi(readHidden, api)) {
@@ -114,27 +153,14 @@ public class JaxrsReader extends AbstractReader implements ClassSwaggerReader {
             if (apiOperation != null && apiOperation.hidden()) {
                 continue;
             }
-            Path methodPath = AnnotationUtils.findAnnotation(method, Path.class);
+            String methodPath = resolveMethodPath(method);
 
-            String parentPathValue = String.valueOf(parentPath);
             //is method default handler within a subresource
             if (apiPath == null && methodPath == null && parentPath != null && readHidden) {
-                final String updatedMethodPath = String.valueOf(parentPath);
-                Path path = new Path() {
-                    @Override
-                    public String value() {
-                        return updatedMethodPath;
-                    }
-
-                    @Override
-                    public Class<? extends Annotation> annotationType() {
-                        return Path.class;
-                    }
-                };
-                methodPath = path;
-                parentPathValue = null;
+                methodPath = parentPath;
+                parentPath = null;
             }
-            String operationPath = getPath(apiPath, methodPath, parentPathValue);
+            String operationPath = getPath(apiPath, methodPath, parentPath);
             if (operationPath != null) {
                 Map<String, String> regexMap = new HashMap<>();
                 operationPath = parseOperationPath(operationPath, regexMap);
@@ -277,7 +303,7 @@ public class JaxrsReader extends AbstractReader implements ClassSwaggerReader {
         return (responseClass != null) && (httpMethod == null) && (AnnotationUtils.findAnnotation(method, Path.class) != null);
     }
 
-    private String getPath(Path classLevelPath, Path methodLevelPath, String parentPath) {
+    private String getPath(String classLevelPath, String methodLevelPath, String parentPath) {
         if (classLevelPath == null && methodLevelPath == null) {
             return null;
         }
@@ -293,10 +319,10 @@ public class JaxrsReader extends AbstractReader implements ClassSwaggerReader {
             stringBuilder.append(parentPath);
         }
         if (classLevelPath != null) {
-            stringBuilder.append(classLevelPath.value());
+            stringBuilder.append(classLevelPath);
         }
-        if (methodLevelPath != null && !methodLevelPath.value().equals("/")) {
-            String methodPath = methodLevelPath.value();
+        if (methodLevelPath != null && !methodLevelPath.equals("/")) {
+            String methodPath = methodLevelPath;
             if (!methodPath.startsWith("/") && !stringBuilder.toString().endsWith("/")) {
                 stringBuilder.append("/");
             }

@@ -90,11 +90,6 @@ public class NginxJaxrsReader extends JaxrsReader {
     }
 
     @Override
-    protected void updateExtensionChain() {
-        // back to default implementation
-    }
-
-    @Override
     public Swagger read(Set<Class<?>> classes) {
         Swagger swagger = super.read(classes);
         if (tags != null) {

@@ -46,7 +46,7 @@ public class SpringMvcApiReader extends AbstractReader implements ClassSwaggerRe
 
     @Override
     protected void updateExtensionChain() {
-    	List<SwaggerExtension> extensions = new ArrayList<SwaggerExtension>();
+    	List<SwaggerExtension> extensions = new ArrayList<>();
     	extensions.add(new SpringSwaggerExtension(LOG));
     	SwaggerExtensions.setExtensions(extensions);
     }
