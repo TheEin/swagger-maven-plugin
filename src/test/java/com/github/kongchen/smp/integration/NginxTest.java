@@ -79,6 +79,9 @@ public class NginxTest extends AbstractMojoTestCase {
             apiSources.add(apiSource);
             apiSource.setSwaggerDirectory(swaggerOutputDir.getAbsolutePath());
             NginxConfig nginxConfig = apiSource.getNginxConfig();
+            if (nginxConfig == null) {
+                continue;
+            }
             nginxConfig.setLocation(root.resolve(properties.getProperty("CFG_PATH")).toAbsolutePath().toString());
             Optional.ofNullable(properties.getProperty("ADD_REWRITES"))
                     .ifPresent(property -> {
