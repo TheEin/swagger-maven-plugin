@@ -1,6 +1,6 @@
 package com.github.kongchen.swagger.docgen;
 
-import com.github.kongchen.swagger.docgen.jaxrs.BeanParamInjectParamExtension;
+import com.github.kongchen.swagger.docgen.jaxrs.ContainerParamExtension;
 import com.github.kongchen.swagger.docgen.jaxrs.JaxrsParameterExtension;
 import com.github.kongchen.swagger.docgen.reader.JaxrsReader;
 import com.github.kongchen.swagger.docgen.spring.SpringSwaggerExtension;
@@ -8,7 +8,6 @@ import com.google.common.collect.Lists;
 import io.swagger.jaxrs.ext.AbstractSwaggerExtension;
 import io.swagger.jaxrs.ext.SwaggerExtension;
 import io.swagger.models.parameters.Parameter;
-import org.apache.maven.plugin.logging.SystemStreamLog;
 import org.testng.annotations.Test;
 
 import java.lang.annotation.Annotation;
@@ -22,7 +21,7 @@ import static org.mockito.Mockito.*;
  * <ul>
  *     <li>@{@link com.github.kongchen.swagger.docgen.spring.SpringSwaggerExtension}</li>
  *     <li>{@link com.github.kongchen.swagger.docgen.jaxrs.JaxrsParameterExtension}</li>
- *     <li>{@link BeanParamInjectParamExtension}</li>
+ *     <li>{@link ContainerParamExtension}</li>
  * </ul>
  *
  */
@@ -32,10 +31,10 @@ public class IncludedSwaggerExtensionTest {
     static {
         //TODO: Maybe use a Classpath Scanner to automatically figure out the included extensions?
         SWAGGER_EXTENSIONS.add(new JaxrsParameterExtension());
-        SWAGGER_EXTENSIONS.add(new SpringSwaggerExtension(new SystemStreamLog()));
-        BeanParamInjectParamExtension beanParamInjectParamExtension = new BeanParamInjectParamExtension();
-        beanParamInjectParamExtension.setReader(mock(JaxrsReader.class));
-        SWAGGER_EXTENSIONS.add(beanParamInjectParamExtension);
+        SWAGGER_EXTENSIONS.add(new SpringSwaggerExtension());
+        ContainerParamExtension containerParamExtension = new ContainerParamExtension();
+        containerParamExtension.setReader(mock(JaxrsReader.class));
+        SWAGGER_EXTENSIONS.add(containerParamExtension);
     }
 
     @Test

@@ -62,11 +62,15 @@ import java.util.Optional;
 import java.util.Set;
 
 public class JaxrsReader extends AbstractReader implements ClassSwaggerReader {
+
+    public static final String SUCCESSFUL_OPERATION = "successful operation";
+
     private static final Logger LOGGER = LoggerFactory.getLogger(JaxrsReader.class);
+
     private static final ResponseContainerConverter RESPONSE_CONTAINER_CONVERTER = new ResponseContainerConverter();
 
-    public JaxrsReader(Swagger swagger, Log LOG) {
-        super(swagger, LOG);
+    public JaxrsReader(Swagger swagger, Log log) {
+        super(swagger, log);
     }
 
     @Override
@@ -491,14 +495,15 @@ public class JaxrsReader extends AbstractReader implements ClassSwaggerReader {
                 }
             }
         }
-        if (operation.getResponses() == null) {
-            operation.defaultResponse(new Response().description("successful operation"));
-        }
 
         // Process @ApiImplicitParams
         this.readImplicitParameters(method, operation);
 
         processOperationDecorator(operation, method);
+
+        if (operation.getResponses() == null) {
+            operation.defaultResponse(new Response().description(SUCCESSFUL_OPERATION));
+        }
 
         return operation;
     }

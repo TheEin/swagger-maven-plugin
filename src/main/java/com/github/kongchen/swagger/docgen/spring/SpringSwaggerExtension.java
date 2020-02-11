@@ -1,14 +1,21 @@
 package com.github.kongchen.swagger.docgen.spring;
 
 import com.fasterxml.jackson.databind.JavaType;
+import com.github.kongchen.swagger.docgen.util.ArrayUtils;
 import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
+import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
 import io.swagger.converter.ModelConverters;
 import io.swagger.jaxrs.ext.AbstractSwaggerExtension;
 import io.swagger.jaxrs.ext.SwaggerExtension;
 import io.swagger.models.Swagger;
-import io.swagger.models.parameters.*;
+import io.swagger.models.parameters.CookieParameter;
+import io.swagger.models.parameters.FormParameter;
+import io.swagger.models.parameters.HeaderParameter;
+import io.swagger.models.parameters.Parameter;
+import io.swagger.models.parameters.PathParameter;
+import io.swagger.models.parameters.QueryParameter;
 import io.swagger.models.properties.ArrayProperty;
 import io.swagger.models.properties.FileProperty;
 import io.swagger.models.properties.Property;
@@ -17,10 +24,17 @@ import io.swagger.util.ParameterProcessor;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.reflect.MethodUtils;
 import org.apache.commons.lang3.reflect.TypeUtils;
-import org.apache.maven.plugin.logging.Log;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
 import org.springframework.core.annotation.AnnotationUtils;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.CookieValue;
+import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.beans.PropertyDescriptor;
@@ -28,37 +42,53 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 /**
  * @author chekong on 15/4/27.
  */
 public class SpringSwaggerExtension extends AbstractSwaggerExtension {
 
-    private final static String DEFAULT_VALUE = "\n\t\t\n\t\t\n\ue000\ue001\ue002\n\t\t\t\t\n";
+    private static final Logger log = LoggerFactory.getLogger(SpringSwaggerExtension.class);
 
-    private static final RequestParam DEFAULT_REQUEST_PARAM = (RequestParam)MethodUtils.getMatchingMethod(AnnotationBearer.class, "get", String.class).getParameterAnnotations()[0][0];
+    private static final String DEFAULT_VALUE = "\n\t\t\n\t\t\n\ue000\ue001\ue002\n\t\t\t\t\n";
 
-    private Log log;
+    private static final RequestParam DEFAULT_REQUEST_PARAM = (RequestParam) MethodUtils.getMatchingMethod(AnnotationBearer.class, "get", String.class).getParameterAnnotations()[0][0];
 
     // Class specificly for holding default value annotations
     private static class AnnotationBearer {
         /**
          * Only used to get annotations..
+         *
          * @param requestParam ignore this
          */
         public void get(@RequestParam String requestParam) {
         }
     }
 
-    public SpringSwaggerExtension(Log log) {
-        this.log = log;
+    @Override
+    public String extractOperationMethod(ApiOperation apiOperation, Method method, Iterator<SwaggerExtension> chain) {
+        return Optional.ofNullable(AnnotationUtils.findAnnotation(method, RequestMapping.class))
+                .map(RequestMapping::method)
+                .map(ArrayUtils::getSingleElement)
+                .map(Enum::name)
+                .map(String::toLowerCase)
+                .orElseGet(() -> super.extractOperationMethod(apiOperation, method, chain));
     }
 
     @Override
     public List<Parameter> extractParameters(List<Annotation> annotations, Type type, Set<Type> typesToSkip, Iterator<SwaggerExtension> chain) {
         if (this.shouldIgnoreType(type, typesToSkip)) {
-            return new ArrayList<Parameter>();
+            return new ArrayList<>();
         }
 
         if (annotations.isEmpty()) {
@@ -68,7 +98,7 @@ public class SpringSwaggerExtension extends AbstractSwaggerExtension {
 
         Map<Class<?>, Annotation> annotationMap = toMap(annotations);
 
-        List<Parameter> parameters = new ArrayList<Parameter>();
+        List<Parameter> parameters = new ArrayList<>();
         parameters.addAll(extractParametersFromModelAttributeAnnotation(type, annotationMap));
         parameters.addAll(extractParametersFromAnnotation(type, annotationMap));
 
@@ -104,7 +134,7 @@ public class SpringSwaggerExtension extends AbstractSwaggerExtension {
         List<Parameter> parameters = new ArrayList<>();
 
         if (isRequestParamType(type, annotations)) {
-            parameters.add(extractRequestParam(type, (RequestParam)annotations.get(RequestParam.class)));
+            parameters.add(extractRequestParam(type, (RequestParam) annotations.get(RequestParam.class)));
         }
         if (annotations.containsKey(PathVariable.class)) {
             PathVariable pathVariable = (PathVariable) annotations.get(PathVariable.class);
@@ -250,12 +280,16 @@ public class SpringSwaggerExtension extends AbstractSwaggerExtension {
     }
 
     private List<Parameter> extractParametersFromModelAttributeAnnotation(Type type, Map<Class<?>, Annotation> annotations) {
-        ModelAttribute modelAttribute = (ModelAttribute)annotations.get(ModelAttribute.class);
-        if ((modelAttribute == null || !hasClassStartingWith(annotations.keySet(), "org.springframework.web.bind.annotation"))&& BeanUtils.isSimpleProperty(TypeUtils.getRawType(type, null))) {
+        ModelAttribute modelAttribute = (ModelAttribute) annotations.get(ModelAttribute.class);
+        if ((modelAttribute == null
+                || !hasClassStartingWith(annotations.keySet(), "org.springframework.web.bind.annotation"))
+
+                && BeanUtils.isSimpleProperty(TypeUtils.getRawType(type, null))) {
+
             return Collections.emptyList();
         }
 
-        List<Parameter> parameters = new ArrayList<Parameter>();
+        List<Parameter> parameters = new ArrayList<>();
         Class<?> clazz = TypeUtils.getRawType(type, type);
         for (PropertyDescriptor propertyDescriptor : BeanUtils.getPropertyDescriptors(clazz)) {
             // Get all the valid setter methods inside the bean
@@ -275,7 +309,7 @@ public class SpringSwaggerExtension extends AbstractSwaggerExtension {
                     continue;
                 }
 
-                Class parameterClass = propertyDescriptor.getPropertyType();
+                Class<?> parameterClass = propertyDescriptor.getPropertyType();
                 List<Parameter> propertySetterExtractedParameters = this.extractParametersFromAnnotation(
                         parameterClass, toMap(Arrays.asList(parameterAnnotations[0])));
 

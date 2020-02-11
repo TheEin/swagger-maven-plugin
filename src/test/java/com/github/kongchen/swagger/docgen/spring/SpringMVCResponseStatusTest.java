@@ -7,7 +7,11 @@ import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
 import io.swagger.jaxrs.ext.SwaggerExtension;
 import io.swagger.jaxrs.ext.SwaggerExtensions;
-import io.swagger.models.*;
+import io.swagger.models.HttpMethod;
+import io.swagger.models.Model;
+import io.swagger.models.ModelImpl;
+import io.swagger.models.Response;
+import io.swagger.models.Swagger;
 import org.apache.maven.plugin.logging.SystemStreamLog;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,7 +31,6 @@ import java.util.Map;
 public class SpringMVCResponseStatusTest {
 
     private static final String REASON = "reason";
-    private static final String SUCCESSFUL_OPERATION_DESCRIPTION = "successful operation";
     private static final String ACCEPTED_OPERATION_DESCRIPTION = "202 message";
     private static final String CONFLICT_OPERATION_DESCRIPTION = "conflict message";
     private static final Model RETURN_TYPE_STRING = new ModelImpl().type("string");
@@ -50,9 +53,9 @@ public class SpringMVCResponseStatusTest {
     @Test
     public void testStatusCommon() throws GenerateException {
         testMethod("/getString", HttpMethod.GET,
-              ImmutableMap.of(
-                    HttpStatus.OK,
-                    new Response().description(SUCCESSFUL_OPERATION_DESCRIPTION).responseSchema(RETURN_TYPE_STRING))
+                ImmutableMap.of(
+                        HttpStatus.OK,
+                        new Response().description(SpringMvcApiReader.SUCCESSFUL_OPERATION).responseSchema(RETURN_TYPE_STRING))
         );
     }
 
@@ -60,9 +63,9 @@ public class SpringMVCResponseStatusTest {
     @Test
     public void testStatusOKOverridden() throws GenerateException {
         testMethod("/getString_200", HttpMethod.GET,
-              ImmutableMap.of(
-                    HttpStatus.OK,
-                    new Response().description(REASON).responseSchema(RETURN_TYPE_STRING))
+                ImmutableMap.of(
+                        HttpStatus.OK,
+                        new Response().description(REASON).responseSchema(RETURN_TYPE_STRING))
         );
     }
 
@@ -70,22 +73,22 @@ public class SpringMVCResponseStatusTest {
     @Test
     public void testAPIResponse() throws GenerateException {
         testMethod("/getString_ApiResponse_202_409", HttpMethod.GET,
-              ImmutableMap.of(
-                    HttpStatus.ACCEPTED,
-                    new Response().description(ACCEPTED_OPERATION_DESCRIPTION).responseSchema(RETURN_TYPE_STRING),
-                    HttpStatus.CONFLICT,
-                    new Response().description(CONFLICT_OPERATION_DESCRIPTION))
+                ImmutableMap.of(
+                        HttpStatus.ACCEPTED,
+                        new Response().description(ACCEPTED_OPERATION_DESCRIPTION).responseSchema(RETURN_TYPE_STRING),
+                        HttpStatus.CONFLICT,
+                        new Response().description(CONFLICT_OPERATION_DESCRIPTION))
         );
     }
 
     @Test
     public void testAPIResponseOverridden() throws GenerateException {
         testMethod("/getString_ApiResponse_202_409_over", HttpMethod.GET,
-              ImmutableMap.of(
-                    HttpStatus.ACCEPTED,
-                    new Response().description(ACCEPTED_OPERATION_DESCRIPTION).responseSchema(RETURN_TYPE_INTEGER),
-                    HttpStatus.CONFLICT,
-                    new Response().description(CONFLICT_OPERATION_DESCRIPTION))
+                ImmutableMap.of(
+                        HttpStatus.ACCEPTED,
+                        new Response().description(ACCEPTED_OPERATION_DESCRIPTION).responseSchema(RETURN_TYPE_INTEGER),
+                        HttpStatus.CONFLICT,
+                        new Response().description(CONFLICT_OPERATION_DESCRIPTION))
         );
     }
 
@@ -93,21 +96,19 @@ public class SpringMVCResponseStatusTest {
     @Test
     public void testStatusCreatedOverridden() throws GenerateException {
         testMethod("/getString_201", HttpMethod.POST,
-              ImmutableMap.of(
-                    HttpStatus.CREATED,
-                    new Response().description(SUCCESSFUL_OPERATION_DESCRIPTION).responseSchema(RETURN_TYPE_INTEGER))
+                ImmutableMap.of(
+                        HttpStatus.CREATED,
+                        new Response().description(SpringMvcApiReader.SUCCESSFUL_OPERATION).responseSchema(RETURN_TYPE_INTEGER))
         );
     }
 
-    private void testMethod(String url, HttpMethod method, Map<HttpStatus, Response> expectedResults) throws GenerateException
-    {
+    private void testMethod(String url, HttpMethod method, Map<HttpStatus, Response> expectedResults) throws GenerateException {
         Swagger result = reader.read(Collections.singleton(TestController.class));
 
         Map<String, Response> responseMap = result.getPaths().get(url).getOperationMap().get(method).getResponses();
         Assert.assertEquals(responseMap.size(), expectedResults.size());
 
-        for (Map.Entry<HttpStatus, Response> expectedResult : expectedResults.entrySet())
-        {
+        for (Map.Entry<HttpStatus, Response> expectedResult : expectedResults.entrySet()) {
             Response response = responseMap.get(expectedResult.getKey().toString());
             Assert.assertNotNull(response);
             Assert.assertEquals(response.getDescription(), expectedResult.getValue().getDescription());

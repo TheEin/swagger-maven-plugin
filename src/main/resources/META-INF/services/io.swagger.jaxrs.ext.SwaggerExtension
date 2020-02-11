@@ -1,3 +1,4 @@
-com.github.kongchen.swagger.docgen.jaxrs.BeanParamInjectParamExtension
+com.github.kongchen.swagger.docgen.jaxrs.ContainerParamExtension
 com.github.kongchen.swagger.docgen.jaxrs.JaxrsParameterExtension
 com.github.kongchen.swagger.docgen.nexign.AutoApiResponsesExtension
+com.github.kongchen.swagger.docgen.spring.SpringSwaggerExtension

@@ -10,6 +10,7 @@ import io.swagger.jaxrs.ext.AbstractSwaggerExtension;
 import io.swagger.jaxrs.ext.SwaggerExtension;
 import io.swagger.models.parameters.Parameter;
 import org.apache.commons.lang3.reflect.TypeUtils;
+import org.springframework.cloud.openfeign.SpringQueryMap;
 
 import javax.ws.rs.BeanParam;
 import java.lang.annotation.Annotation;
@@ -25,8 +26,9 @@ import java.util.Set;
  *
  * @author chekong on 15/5/9.
  */
-public class BeanParamInjectParamExtension extends AbstractSwaggerExtension implements ReaderAware {
+public class ContainerParamExtension extends AbstractSwaggerExtension implements ReaderAware {
 
+    public static final Class<?>[] CONTAINER_PARAM_ANNOTATIONS = {BeanParam.class, InjectParam.class, SpringQueryMap.class};
 
     private AbstractReader reader;
 
@@ -45,8 +47,10 @@ public class BeanParamInjectParamExtension extends AbstractSwaggerExtension impl
             return Lists.newArrayList();
         }
         for (Annotation annotation : annotations) {
-            if (annotation instanceof BeanParam || annotation instanceof InjectParam) {
-                return reader.extractTypes(cls, typesToSkip, Lists.newArrayList());
+            for (Class<?> validParameterAnnotation : CONTAINER_PARAM_ANNOTATIONS) {
+                if (validParameterAnnotation.isAssignableFrom(annotation.annotationType())) {
+                    return reader.extractTypes(cls, typesToSkip, Lists.newArrayList());
+                }
             }
         }
         return super.extractParameters(annotations, type, typesToSkip, chain);

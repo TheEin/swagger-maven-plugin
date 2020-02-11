@@ -2,10 +2,9 @@ package com.github.kongchen.swagger.docgen.reader;
 
 import com.github.kongchen.swagger.docgen.ReaderAware;
 import com.github.kongchen.swagger.docgen.ResponseMessageOverride;
+import com.github.kongchen.swagger.docgen.util.SwaggerExtensions;
 import com.github.kongchen.swagger.docgen.util.TypeExtracter;
 import com.github.kongchen.swagger.docgen.util.TypeWithAnnotations;
-import com.google.common.collect.Lists;
-import com.sun.jersey.api.core.InjectParam;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiImplicitParam;
 import io.swagger.annotations.ApiImplicitParams;
@@ -18,7 +17,6 @@ import io.swagger.annotations.AuthorizationScope;
 import io.swagger.annotations.ResponseHeader;
 import io.swagger.converter.ModelConverters;
 import io.swagger.jaxrs.ext.SwaggerExtension;
-import io.swagger.jaxrs.ext.SwaggerExtensions;
 import io.swagger.models.Model;
 import io.swagger.models.Operation;
 import io.swagger.models.Path;
@@ -39,23 +37,12 @@ import io.swagger.models.properties.Property;
 import io.swagger.models.properties.RefProperty;
 import io.swagger.util.ParameterProcessor;
 import io.swagger.util.PathUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.reflect.TypeUtils;
 import org.apache.commons.lang3.text.StrBuilder;
 import org.apache.maven.plugin.logging.Log;
 import org.springframework.core.annotation.AnnotationUtils;
-import org.springframework.web.bind.annotation.CookieValue;
-import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RequestPart;
 
-import javax.ws.rs.BeanParam;
-import javax.ws.rs.FormParam;
-import javax.ws.rs.HeaderParam;
-import javax.ws.rs.PathParam;
-import javax.ws.rs.QueryParam;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
@@ -69,16 +56,25 @@ import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * @author chekong on 15/4/28.
  */
 public abstract class AbstractReader {
+
     private static final ResponseContainerConverter RESPONSE_CONTAINER_CONVERTER = new ResponseContainerConverter();
-    protected final Log LOG;
+
+    private Set<Type> typesToSkip = new HashSet<>();
+
+    protected final Log log;
+
     protected Swagger swagger;
-    private Set<Type> typesToSkip = new HashSet<Type>();
+
     protected List<ResponseMessageOverride> responseMessageOverrides;
 
     protected String operationIdFormat;
@@ -87,14 +83,14 @@ public abstract class AbstractReader {
      * Supported parameters: {{packageName}}, {{className}}, {{methodName}}, {{httpMethod}}
      * Suggested default value is: "{{className}}_{{methodName}}_{{httpMethod}}"
      */
-    public static final String OPERATION_ID_FORMAT_DEFAULT = "{{methodName}}";
+    public static final String OPERATION_ID_FORMAT_DEFAULT = "{{className}}.{{methodName}}";
 
     public Set<Type> getTypesToSkip() {
         return typesToSkip;
     }
 
     public void setTypesToSkip(List<Type> typesToSkip) {
-        this.typesToSkip = new HashSet<Type>(typesToSkip);
+        this.typesToSkip = new HashSet<>(typesToSkip);
     }
 
     public void setTypesToSkip(Set<Type> typesToSkip) {
@@ -113,9 +109,9 @@ public abstract class AbstractReader {
         return responseMessageOverrides;
     }
 
-    public AbstractReader(Swagger swagger, Log LOG) {
+    public AbstractReader(Swagger swagger, Log log) {
         this.swagger = swagger;
-        this.LOG = LOG;
+        this.log = log;
         updateExtensionChain();
     }
 
@@ -123,11 +119,11 @@ public abstract class AbstractReader {
      * Method which allows sub-classes to modify the Swagger extension chain.
      */
     protected void updateExtensionChain() {
-        for (SwaggerExtension extension : SwaggerExtensions.getExtensions()) {
+        SwaggerExtensions.chain().forEachRemaining(extension -> {
             if (extension instanceof ReaderAware) {
                 ((ReaderAware) extension).setReader(this);
             }
-        }
+        });
     }
 
     protected List<SecurityRequirement> getSecurityRequirements(Api api) {
@@ -345,41 +341,6 @@ public abstract class AbstractReader {
         return false;
     }
 
-    private boolean hasValidAnnotations(List<Annotation> parameterAnnotations) {
-        // Because method parameters can contain parameters that are valid, but
-        // not part of the API contract, first check to make sure the parameter
-        // has at lease one annotation before processing it.  Also, check a
-        // whitelist to make sure that the annotation of the parameter is
-        // compatible with spring-maven-plugin
-
-        List<Type> validParameterAnnotations = new ArrayList<>();
-        validParameterAnnotations.add(ModelAttribute.class);
-        validParameterAnnotations.add(BeanParam.class);
-        validParameterAnnotations.add(InjectParam.class);
-        validParameterAnnotations.add(ApiParam.class);
-        validParameterAnnotations.add(PathParam.class);
-        validParameterAnnotations.add(QueryParam.class);
-        validParameterAnnotations.add(HeaderParam.class);
-        validParameterAnnotations.add(FormParam.class);
-        validParameterAnnotations.add(RequestParam.class);
-        validParameterAnnotations.add(RequestBody.class);
-        validParameterAnnotations.add(PathVariable.class);
-        validParameterAnnotations.add(RequestHeader.class);
-        validParameterAnnotations.add(RequestPart.class);
-        validParameterAnnotations.add(CookieValue.class);
-
-
-        boolean hasValidAnnotation = false;
-        for (Annotation potentialAnnotation : parameterAnnotations) {
-            if (validParameterAnnotations.contains(potentialAnnotation.annotationType())) {
-                hasValidAnnotation = true;
-                break;
-            }
-        }
-
-        return hasValidAnnotation;
-    }
-
     // this is final to enforce that only the implementation method below can be overridden, to avoid confusion
     protected final List<Parameter> getParameters(Type type, List<Annotation> annotations) {
         return getParameters(type, annotations, typesToSkip);
@@ -387,37 +348,32 @@ public abstract class AbstractReader {
 
     // this method exists so that outside callers can choose their own custom types to skip
     protected List<Parameter> getParameters(Type type, List<Annotation> annotations, Set<Type> typesToSkip) {
-        if (!hasValidAnnotations(annotations) || isApiParamHidden(annotations)) {
+        if (isApiParamHidden(annotations)) {
             return Collections.emptyList();
         }
 
-        Iterator<SwaggerExtension> chain = SwaggerExtensions.chain();
-        List<Parameter> parameters = new ArrayList<>();
         Class<?> cls = TypeUtils.getRawType(type, type);
-        LOG.debug("Looking for path/query/header/form/cookie params in " + cls);
+        log.debug("Looking for path/query/header/form/cookie params in " + cls);
 
-        if (chain.hasNext()) {
-            SwaggerExtension extension = chain.next();
-            LOG.debug("trying extension " + extension);
-            parameters = extension.extractParameters(annotations, type, typesToSkip, chain);
-        }
-
-        if (!parameters.isEmpty()) {
-            for (Parameter parameter : parameters) {
-                ParameterProcessor.applyAnnotations(swagger, parameter, type, annotations);
-            }
-        } else {
-            LOG.debug("Looking for body params in " + cls);
-            // parameters is guaranteed to be empty at this point, replace it with a mutable collection
-            parameters = Lists.newArrayList();
-            if (!typesToSkip.contains(type)) {
-                Parameter param = ParameterProcessor.applyAnnotations(swagger, null, type, annotations);
-                if (param != null) {
-                    parameters.add(param);
-                }
-            }
-        }
-        return parameters;
+        Iterator<SwaggerExtension> chain = io.swagger.jaxrs.ext.SwaggerExtensions.chain();
+        return SwaggerExtensions.findFirst(chain)
+                .map(extension -> extension.extractParameters(annotations, type, typesToSkip, chain))
+                .map(parameters -> parameters.stream()
+                        .map(parameter -> ParameterProcessor.applyAnnotations(swagger, parameter, type, annotations))
+                        .filter(Objects::nonNull)
+                        .filter(parameter -> !StringUtils.isBlank(parameter.getName()))
+                        .collect(Collectors.toList()))
+                .filter(((Predicate<List<Parameter>>) List::isEmpty).negate())
+                .orElseGet(() -> {
+                    if (typesToSkip.isEmpty()) {
+                        log.debug("Looking for body params in " + cls);
+                        return Optional.ofNullable(
+                                ParameterProcessor.applyAnnotations(swagger, null, type, annotations))
+                                .map(Collections::singletonList)
+                                .orElseGet(Collections::emptyList);
+                    }
+                    return Collections.emptyList();
+                });
     }
 
     protected void updateApiResponse(Operation operation, ApiResponses responseAnnotation) {
@@ -560,11 +516,9 @@ public abstract class AbstractReader {
     }
 
     void processOperationDecorator(Operation operation, Method method) {
-        final Iterator<SwaggerExtension> chain = SwaggerExtensions.chain();
-        if (chain.hasNext()) {
-            SwaggerExtension extension = chain.next();
-            extension.decorateOperation(operation, method, chain);
-        }
+        Iterator<SwaggerExtension> chain = SwaggerExtensions.chain();
+        SwaggerExtensions.findFirst(chain)
+                .ifPresent(extension -> extension.decorateOperation(operation, method, chain));
     }
 
     protected String getOperationId(Method method, String httpMethod) {
@@ -589,11 +543,11 @@ public abstract class AbstractReader {
         TypeExtracter extractor = new TypeExtracter();
         Collection<TypeWithAnnotations> typesWithAnnotations = extractor.extractTypes(cls);
 
-        List<Parameter> output = new ArrayList<Parameter>();
+        List<Parameter> output = new ArrayList<>();
         for (TypeWithAnnotations typeWithAnnotations : typesWithAnnotations) {
 
             Type type = typeWithAnnotations.getType();
-            List<Annotation> annotations = new ArrayList<Annotation>(additionalAnnotations);
+            List<Annotation> annotations = new ArrayList<>(additionalAnnotations);
             annotations.addAll(typeWithAnnotations.getAnnotations());
 
             /*
@@ -605,7 +559,7 @@ public abstract class AbstractReader {
              * classes are shared with SwaggerReaderTest and Swagger's own logic
              * doesn't prevent this problem.
              */
-            Set<Type> recurseTypesToSkip = new HashSet<Type>(typesToSkip);
+            Set<Type> recurseTypesToSkip = new HashSet<>(typesToSkip);
             recurseTypesToSkip.add(cls);
 
             output.addAll(this.getParameters(type, annotations, recurseTypesToSkip));

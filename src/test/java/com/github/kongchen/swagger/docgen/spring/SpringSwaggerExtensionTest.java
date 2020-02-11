@@ -19,7 +19,7 @@ import static org.testng.Assert.assertEquals;
 public class SpringSwaggerExtensionTest {
     @Test
     public void testExtractParametersReturnsRetrievedParameters() {
-        List<Parameter> parameters = new SpringSwaggerExtension(new SystemStreamLog()).extractParameters(
+        List<Parameter> parameters = new SpringSwaggerExtension().extractParameters(
                 Lists.newArrayList(getTestAnnotation()),
                 PaginationHelper.class,
                 Sets.<Type>newHashSet(),
@@ -30,7 +30,7 @@ public class SpringSwaggerExtensionTest {
 
     @Test
     public void testExtractParametersNoModelAttributeAnnotation() {
-        List<Parameter> parameters = new SpringSwaggerExtension(new SystemStreamLog()).extractParameters(
+        List<Parameter> parameters = new SpringSwaggerExtension().extractParameters(
                 Lists.newArrayList(),
                 PaginationHelper.class,
                 Sets.<Type>newHashSet(),
