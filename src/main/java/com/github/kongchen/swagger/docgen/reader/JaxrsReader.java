@@ -2,6 +2,7 @@ package com.github.kongchen.swagger.docgen.reader;
 
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.As;
+import com.github.kongchen.swagger.docgen.util.SwaggerExtensionChain;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiResponses;
@@ -9,8 +10,6 @@ import io.swagger.annotations.Authorization;
 import io.swagger.annotations.AuthorizationScope;
 import io.swagger.annotations.SwaggerDefinition;
 import io.swagger.converter.ModelConverters;
-import io.swagger.jaxrs.ext.SwaggerExtension;
-import io.swagger.jaxrs.ext.SwaggerExtensions;
 import io.swagger.models.ArrayModel;
 import io.swagger.models.Model;
 import io.swagger.models.ModelImpl;
@@ -55,7 +54,6 @@ import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -169,7 +167,7 @@ public class JaxrsReader extends AbstractReader implements ClassSwaggerReader {
                 Map<String, String> regexMap = new HashMap<>();
                 operationPath = parseOperationPath(operationPath, regexMap);
 
-                String httpMethod = extractOperationMethod(apiOperation, method, SwaggerExtensions.chain());
+                String httpMethod = extractOperationMethod(apiOperation, method);
 
                 Operation operation = parseMethod(httpMethod, method);
                 updateOperationParameters(parentParameters, regexMap, operation);
@@ -240,7 +238,7 @@ public class JaxrsReader extends AbstractReader implements ClassSwaggerReader {
                 return;
             }
 
-            String httpMethod = extractOperationMethod(null, method, SwaggerExtensions.chain());
+            String httpMethod = extractOperationMethod(null, method);
             if (httpMethod != null) {
                 return;
             }
@@ -558,7 +556,7 @@ public class JaxrsReader extends AbstractReader implements ClassSwaggerReader {
         return parameter;
     }
 
-    public String extractOperationMethod(ApiOperation apiOperation, Method method, Iterator<SwaggerExtension> chain) {
+    public String extractOperationMethod(ApiOperation apiOperation, Method method) {
         if (apiOperation != null && !apiOperation.httpMethod().isEmpty()) {
             return apiOperation.httpMethod().toLowerCase();
         } else if (AnnotationUtils.findAnnotation(method, GET.class) != null) {
@@ -587,8 +585,9 @@ public class JaxrsReader extends AbstractReader implements ClassSwaggerReader {
                 }
             }
 
-            if (chain.hasNext()) {
-                return chain.next().extractOperationMethod(apiOperation, method, chain);
+            Optional<String> operationMethod = SwaggerExtensionChain.extractOperationMethod(apiOperation, method);
+            if (operationMethod.isPresent()) {
+                return operationMethod.get();
             }
         }
 

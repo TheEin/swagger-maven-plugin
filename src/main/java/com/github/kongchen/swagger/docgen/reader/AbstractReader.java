@@ -2,7 +2,7 @@ package com.github.kongchen.swagger.docgen.reader;
 
 import com.github.kongchen.swagger.docgen.ReaderAware;
 import com.github.kongchen.swagger.docgen.ResponseMessageOverride;
-import com.github.kongchen.swagger.docgen.util.SwaggerExtensions;
+import com.github.kongchen.swagger.docgen.util.SwaggerExtensionChain;
 import com.github.kongchen.swagger.docgen.util.TypeExtracter;
 import com.github.kongchen.swagger.docgen.util.TypeWithAnnotations;
 import io.swagger.annotations.Api;
@@ -16,7 +16,7 @@ import io.swagger.annotations.Authorization;
 import io.swagger.annotations.AuthorizationScope;
 import io.swagger.annotations.ResponseHeader;
 import io.swagger.converter.ModelConverters;
-import io.swagger.jaxrs.ext.SwaggerExtension;
+import io.swagger.jaxrs.ext.SwaggerExtensions;
 import io.swagger.models.Model;
 import io.swagger.models.Operation;
 import io.swagger.models.Path;
@@ -355,9 +355,8 @@ public abstract class AbstractReader {
         Class<?> cls = TypeUtils.getRawType(type, type);
         log.debug("Looking for path/query/header/form/cookie params in " + cls);
 
-        Iterator<SwaggerExtension> chain = io.swagger.jaxrs.ext.SwaggerExtensions.chain();
-        return SwaggerExtensions.findFirst(chain)
-                .map(extension -> extension.extractParameters(annotations, type, typesToSkip, chain))
+        return SwaggerExtensionChain
+                .extractParameters(annotations, type, typesToSkip)
                 .map(parameters -> parameters.stream()
                         .map(parameter -> ParameterProcessor.applyAnnotations(swagger, parameter, type, annotations))
                         .filter(Objects::nonNull)
@@ -516,9 +515,7 @@ public abstract class AbstractReader {
     }
 
     void processOperationDecorator(Operation operation, Method method) {
-        Iterator<SwaggerExtension> chain = SwaggerExtensions.chain();
-        SwaggerExtensions.findFirst(chain)
-                .ifPresent(extension -> extension.decorateOperation(operation, method, chain));
+        SwaggerExtensionChain.decorateOperation(operation, method);
     }
 
     protected String getOperationId(Method method, String httpMethod) {

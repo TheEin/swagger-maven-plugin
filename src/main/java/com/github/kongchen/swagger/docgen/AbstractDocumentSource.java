@@ -493,7 +493,7 @@ public abstract class AbstractDocumentSource<D extends AbstractReader & ClassSwa
      */
     protected List<SwaggerExtension> resolveSwaggerExtensions() throws GenerateException {
         List<String> clazzes = apiSource.getSwaggerExtensions();
-        List<SwaggerExtension> resolved = new ArrayList<SwaggerExtension>();
+        List<SwaggerExtension> resolved = new ArrayList<>();
         if (clazzes != null) {
             for (String clazz : clazzes) {
                 SwaggerExtension extension = null;
