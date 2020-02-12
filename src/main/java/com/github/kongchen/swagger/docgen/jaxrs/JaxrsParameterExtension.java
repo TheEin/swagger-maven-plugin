@@ -36,13 +36,12 @@ public class JaxrsParameterExtension extends AbstractSwaggerExtension {
     @Override
     public List<Parameter> extractParameters(List<Annotation> annotations, Type type, Set<Type> typesToSkip, Iterator<SwaggerExtension> chain) {
         if (this.shouldIgnoreType(type, typesToSkip)) {
-            return new ArrayList<Parameter>();
+            return new ArrayList<>();
         }
 
         ClassToInstanceMap<Annotation> annotationMap = toMap(annotations);
 
-        List<Parameter> parameters = new ArrayList<Parameter>();
-        parameters.addAll(extractParametersFromAnnotation(type, annotationMap));
+        List<Parameter> parameters = new ArrayList<>(extractParametersFromAnnotation(type, annotationMap));
 
         if (!parameters.isEmpty()) {
             return parameters;

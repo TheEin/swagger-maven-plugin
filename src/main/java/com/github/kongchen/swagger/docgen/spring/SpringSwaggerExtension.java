@@ -3,7 +3,9 @@ package com.github.kongchen.swagger.docgen.spring;
 import com.fasterxml.jackson.databind.JavaType;
 import com.github.kongchen.swagger.docgen.util.ArrayUtils;
 import com.google.common.base.Strings;
+import com.google.common.collect.ClassToInstanceMap;
 import com.google.common.collect.Lists;
+import com.google.common.collect.MutableClassToInstanceMap;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
 import io.swagger.converter.ModelConverters;
@@ -31,6 +33,7 @@ import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -46,10 +49,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -88,15 +89,9 @@ public class SpringSwaggerExtension extends AbstractSwaggerExtension {
     @Override
     public List<Parameter> extractParameters(List<Annotation> annotations, Type type, Set<Type> typesToSkip, Iterator<SwaggerExtension> chain) {
         if (this.shouldIgnoreType(type, typesToSkip)) {
-            return new ArrayList<>();
+            return Collections.emptyList();
         }
-
-        if (annotations.isEmpty()) {
-            // Method arguments are not required to have any annotations
-            annotations = Lists.newArrayList((Annotation) null);
-        }
-
-        Map<Class<?>, Annotation> annotationMap = toMap(annotations);
+        ClassToInstanceMap<Annotation> annotationMap = toMap(annotations);
 
         List<Parameter> parameters = new ArrayList<>();
         parameters.addAll(extractParametersFromModelAttributeAnnotation(type, annotationMap));
@@ -108,63 +103,81 @@ public class SpringSwaggerExtension extends AbstractSwaggerExtension {
         return super.extractParameters(annotations, type, typesToSkip, chain);
     }
 
-    private Map<Class<?>, Annotation> toMap(Collection<? extends Annotation> annotations) {
-        Map<Class<?>, Annotation> annotationMap = new HashMap<>();
+    private ClassToInstanceMap<Annotation> toMap(Collection<? extends Annotation> annotations) {
+        ClassToInstanceMap<Annotation> annotationMap = MutableClassToInstanceMap.create();
         for (Annotation annotation : annotations) {
             if (annotation == null) {
                 continue;
             }
             annotationMap.put(annotation.annotationType(), annotation);
         }
-
         return annotationMap;
     }
 
-    private boolean hasClassStartingWith(Collection<Class<?>> list, String value) {
-        for (Class<?> aClass : list) {
-            if (aClass.getName().startsWith(value)) {
-                return true;
+    private boolean noneBindAnnotations(ClassToInstanceMap<Annotation> annotations) {
+        for (Class<?> types : annotations.keySet()) {
+            if (types.getName().startsWith("org.springframework.web.bind.annotation")) {
+                return false;
             }
         }
-
-        return false;
+        return true;
     }
 
-    private List<Parameter> extractParametersFromAnnotation(Type type, Map<Class<?>, Annotation> annotations) {
-        List<Parameter> parameters = new ArrayList<>();
+    private List<Parameter> extractParametersFromAnnotation(Type type, ClassToInstanceMap<Annotation> annotations) {
+        List<Parameter> parameters;
+
+        ApiParam apiParam = annotations.getInstance(ApiParam.class);
+        Annotation paramAnnotation;
+        boolean paramRequired;
 
         if (isRequestParamType(type, annotations)) {
-            parameters.add(extractRequestParam(type, (RequestParam) annotations.get(RequestParam.class)));
-        }
-        if (annotations.containsKey(PathVariable.class)) {
-            PathVariable pathVariable = (PathVariable) annotations.get(PathVariable.class);
+            RequestParam requestParam = Optional
+                    .ofNullable(annotations.getInstance(RequestParam.class))
+                    .orElse(DEFAULT_REQUEST_PARAM);
+            paramAnnotation = requestParam;
+            paramRequired = requestParam.required();
+            parameters = Collections.singletonList(extractRequestParam(type, requestParam));
+        } else if (annotations.containsKey(PathVariable.class)) {
+            PathVariable pathVariable = annotations.getInstance(PathVariable.class);
+            paramAnnotation = pathVariable;
+            paramRequired = pathVariable.required();
             PathParameter pathParameter = extractPathVariable(type, pathVariable);
-            parameters.add(pathParameter);
-        }
-        if (annotations.containsKey(RequestHeader.class)) {
-            RequestHeader requestHeader = (RequestHeader) annotations.get(RequestHeader.class);
+            parameters = Collections.singletonList(pathParameter);
+        } else if (annotations.containsKey(RequestHeader.class)) {
+            RequestHeader requestHeader = annotations.getInstance(RequestHeader.class);
+            paramAnnotation = requestHeader;
+            paramRequired = requestHeader.required();
             HeaderParameter headerParameter = extractRequestHeader(type, requestHeader);
-            parameters.add(headerParameter);
-        }
-        if (annotations.containsKey(CookieValue.class)) {
-            CookieValue cookieValue = (CookieValue) annotations.get(CookieValue.class);
+            parameters = Collections.singletonList(headerParameter);
+        } else if (annotations.containsKey(CookieValue.class)) {
+            CookieValue cookieValue = annotations.getInstance(CookieValue.class);
+            paramAnnotation = cookieValue;
+            paramRequired = cookieValue.required();
             CookieParameter cookieParameter = extractCookieValue(type, cookieValue);
-            parameters.add(cookieParameter);
-        }
-        if (annotations.containsKey(RequestPart.class)) {
-            RequestPart requestPart = (RequestPart) annotations.get(RequestPart.class);
+            parameters = Collections.singletonList(cookieParameter);
+        } else if (annotations.containsKey(RequestPart.class)) {
+            RequestPart requestPart = annotations.getInstance(RequestPart.class);
+            paramAnnotation = requestPart;
+            paramRequired = requestPart.required();
             FormParameter formParameter = extractRequestPart(type, requestPart);
-            parameters.add(formParameter);
+            parameters = Collections.singletonList(formParameter);
+        } else if (annotations.containsKey(RequestBody.class)) {
+            RequestBody requestBody = annotations.getInstance(RequestBody.class);
+            paramAnnotation = requestBody;
+            paramRequired = requestBody.required();
+            parameters = Collections.emptyList();
+        } else {
+            return Collections.emptyList();
         }
 
+        if (apiParam != null && apiParam.required() != paramRequired) {
+            throw new IllegalStateException("Conflicting required attribute values on annotations.\n" +
+                    apiParam + "\n" + paramAnnotation);
+        }
         return parameters;
     }
 
     private Parameter extractRequestParam(Type type, RequestParam requestParam) {
-        if (requestParam == null) {
-            requestParam = DEFAULT_REQUEST_PARAM;
-        }
-
         String paramName = StringUtils.defaultIfEmpty(requestParam.value(), requestParam.name());
         QueryParameter queryParameter = new QueryParameter().name(paramName)
                 .required(requestParam.required());
@@ -279,13 +292,10 @@ public class SpringSwaggerExtension extends AbstractSwaggerExtension {
         }
     }
 
-    private List<Parameter> extractParametersFromModelAttributeAnnotation(Type type, Map<Class<?>, Annotation> annotations) {
-        ModelAttribute modelAttribute = (ModelAttribute) annotations.get(ModelAttribute.class);
-        if ((modelAttribute == null
-                || !hasClassStartingWith(annotations.keySet(), "org.springframework.web.bind.annotation"))
-
+    private List<Parameter> extractParametersFromModelAttributeAnnotation(Type type, ClassToInstanceMap<Annotation> annotations) {
+        ModelAttribute modelAttribute = annotations.getInstance(ModelAttribute.class);
+        if ((modelAttribute == null || noneBindAnnotations(annotations))
                 && BeanUtils.isSimpleProperty(TypeUtils.getRawType(type, null))) {
-
             return Collections.emptyList();
         }
 
@@ -301,9 +311,9 @@ public class SpringSwaggerExtension extends AbstractSwaggerExtension {
                     continue;
                 }
 
-                // Here we have a bean setter method that is annotted with @ApiParam, but we still
+                // Here we have a bean setter method that is annotated with @ApiParam, but we still
                 // need to know what type of parameter to create. In order to do this, we look for
-                // any annotation attached to the first method parameter of the setter fucntion.
+                // any annotation attached to the first method parameter of the setter function.
                 Annotation[][] parameterAnnotations = propertyDescriptorSetter.getParameterAnnotations();
                 if (parameterAnnotations == null || parameterAnnotations.length == 0) {
                     continue;
@@ -326,9 +336,9 @@ public class SpringSwaggerExtension extends AbstractSwaggerExtension {
         return parameters;
     }
 
-    private boolean isRequestParamType(Type type, Map<Class<?>, Annotation> annotations) {
-        RequestParam requestParam = (RequestParam) annotations.get(RequestParam.class);
-        return requestParam != null || (BeanUtils.isSimpleProperty(TypeUtils.getRawType(type, type)) && !hasClassStartingWith(annotations.keySet(), "org.springframework.web.bind.annotation"));
+    private boolean isRequestParamType(Type type, ClassToInstanceMap<Annotation> annotations) {
+        RequestParam requestParam = annotations.getInstance(RequestParam.class);
+        return requestParam != null || (BeanUtils.isSimpleProperty(TypeUtils.getRawType(type, type)) && noneBindAnnotations(annotations));
     }
 
     @Override

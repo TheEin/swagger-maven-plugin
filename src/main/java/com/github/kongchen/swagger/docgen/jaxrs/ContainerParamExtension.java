@@ -3,7 +3,6 @@ package com.github.kongchen.swagger.docgen.jaxrs;
 import com.github.kongchen.swagger.docgen.ReaderAware;
 import com.github.kongchen.swagger.docgen.reader.AbstractReader;
 import com.github.kongchen.swagger.docgen.reader.JaxrsReader;
-import com.google.common.collect.Lists;
 import com.sun.jersey.api.core.InjectParam;
 import com.sun.jersey.core.header.FormDataContentDisposition;
 import io.swagger.jaxrs.ext.AbstractSwaggerExtension;
@@ -15,6 +14,8 @@ import org.springframework.cloud.openfeign.SpringQueryMap;
 import javax.ws.rs.BeanParam;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -44,12 +45,12 @@ public class ContainerParamExtension extends AbstractSwaggerExtension implements
         if (shouldIgnoreClass(cls) || typesToSkip.contains(type)) {
             // stop the processing chain
             typesToSkip.add(type);
-            return Lists.newArrayList();
+            return Collections.emptyList();
         }
         for (Annotation annotation : annotations) {
             for (Class<?> validParameterAnnotation : CONTAINER_PARAM_ANNOTATIONS) {
                 if (validParameterAnnotation.isAssignableFrom(annotation.annotationType())) {
-                    return reader.extractTypes(cls, typesToSkip, Lists.newArrayList());
+                    return reader.extractTypes(cls, typesToSkip, new ArrayList<>());
                 }
             }
         }
