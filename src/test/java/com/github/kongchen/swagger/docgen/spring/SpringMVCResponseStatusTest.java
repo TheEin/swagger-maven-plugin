@@ -103,9 +103,9 @@ public class SpringMVCResponseStatusTest {
     }
 
     private void testMethod(String url, HttpMethod method, Map<HttpStatus, Response> expectedResults) throws GenerateException {
-        Swagger result = reader.read(Collections.singleton(TestController.class));
+        reader.read(Collections.singleton(TestController.class));
 
-        Map<String, Response> responseMap = result.getPaths().get(url).getOperationMap().get(method).getResponses();
+        Map<String, Response> responseMap = reader.getSwagger().getPaths().get(url).getOperationMap().get(method).getResponses();
         Assert.assertEquals(responseMap.size(), expectedResults.size());
 
         for (Map.Entry<HttpStatus, Response> expectedResult : expectedResults.entrySet()) {

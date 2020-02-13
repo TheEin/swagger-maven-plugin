@@ -58,11 +58,12 @@ public class AbstractDocumentSourceTest {
         swagger.setBasePath("/a/b");
 
         // act
-        Swagger result = source.removeBasePathFromEndpoints(swagger, true);
+        source.apiSource.setRemoveBasePathFromEndpoints(true);
+        source.removeBasePathFromEndpoints();
 
         // assert
-        assertThat(result.getPath("/c"), notNullValue());
-        assertThat(result.getPath("/a/b/c"), nullValue());
+        assertThat(swagger.getPath("/c"), notNullValue());
+        assertThat(swagger.getPath("/a/b/c"), nullValue());
     }
 
     @Test

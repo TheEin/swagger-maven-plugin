@@ -32,6 +32,6 @@ public class MavenDocumentSource extends AbstractDocumentSource<JaxrsReader> {
 
     @Override
     protected JaxrsReader createReader() {
-        return new NginxJaxrsReader(swagger, nginxConfig, LOG);
+        return new NginxJaxrsReader(swagger, nginxConfig, log);
     }
 }

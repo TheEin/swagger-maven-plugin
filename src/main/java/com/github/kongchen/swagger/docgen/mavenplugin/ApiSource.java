@@ -500,7 +500,7 @@ public class ApiSource {
         return StringUtils.isEmpty(str) ? null : str;
     }
 
-    public Boolean getRemoveBasePathFromEndpoints() {
+    public boolean getRemoveBasePathFromEndpoints() {
         return removeBasePathFromEndpoints;
     }
 

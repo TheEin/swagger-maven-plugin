@@ -45,8 +45,8 @@ public class NginxJaxrsReader extends JaxrsReader {
 
     private final List<UrlTag> urlTags;
 
-    public NginxJaxrsReader(Swagger swagger, NginxConfig nginxConfig, Log LOG) {
-        super(swagger, LOG);
+    public NginxJaxrsReader(Swagger swagger, NginxConfig nginxConfig, Log log) {
+        super(swagger, log);
 
         if (nginxConfig == null || !nginxConfig.isEnabled()) {
             config = null;
@@ -90,20 +90,19 @@ public class NginxJaxrsReader extends JaxrsReader {
     }
 
     @Override
-    public Swagger read(Set<Class<?>> classes) {
-        Swagger swagger = super.read(classes);
+    public void read(Set<Class<?>> classes) {
+        super.read(classes);
         if (tags != null) {
             tags.stream().map(NginxTag::getName)
                     .filter(name -> swagger.getTag(name) == null)
                     .forEach(name -> swagger.addTag(new Tag().name(name)));
         }
-        return swagger;
     }
 
     @Override
-    protected void updatePath(String operationPath, String httpMethod, Operation operation) {
-        operationPath = revertPath(operationPath, httpMethod, operation);
-        super.updatePath(operationPath, httpMethod, operation);
+    protected void updatePath(Context<Class<?>> ctx) {
+        ctx.operationPath = revertPath(ctx.operationPath, ctx.httpMethod, ctx.operation);
+        super.updatePath(ctx);
     }
 
     private String revertPath(String operationPath, String httpMethod, Operation operation) {

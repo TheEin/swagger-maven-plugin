@@ -1,27 +1,24 @@
 package com.github.kongchen.swagger.docgen.reader;
 
-import java.util.Set;
-
-import org.apache.maven.plugin.logging.Log;
-
 import com.github.kongchen.swagger.docgen.GenerateException;
-
 import io.swagger.models.Swagger;
 import io.swagger.servlet.Reader;
+import org.apache.maven.plugin.logging.Log;
+
+import java.util.Set;
 
 /**
  * A dedicated {@link ClassSwaggerReader} to scan Serlet classes.
  */
-public class ServletReader extends AbstractReader implements ClassSwaggerReader {
+public class ServletReader extends AbstractReader {
 
-    public ServletReader(Swagger swagger, Log LOG) {
-        super(swagger, LOG);
+    public ServletReader(Swagger swagger, Log log) {
+        super(swagger, log);
     }
 
     @Override
-    public Swagger read(Set<Class<?>> classes) throws GenerateException {
-        Reader.read(swagger, classes );
-        return swagger;
+    public void read(Set<Class<?>> classes) throws GenerateException {
+        Reader.read(swagger, classes);
     }
 
 }

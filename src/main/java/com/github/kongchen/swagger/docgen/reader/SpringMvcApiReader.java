@@ -14,7 +14,6 @@ import io.swagger.models.Operation;
 import io.swagger.models.Response;
 import io.swagger.models.SecurityRequirement;
 import io.swagger.models.Swagger;
-import io.swagger.models.Tag;
 import io.swagger.models.parameters.Parameter;
 import io.swagger.models.properties.Property;
 import io.swagger.models.properties.RefProperty;
@@ -42,7 +41,7 @@ import static org.apache.commons.lang3.StringUtils.defaultIfEmpty;
 import static org.springframework.core.annotation.AnnotatedElementUtils.findMergedAnnotation;
 import static org.springframework.core.annotation.AnnotationUtils.findAnnotation;
 
-public class SpringMvcApiReader extends AbstractReader implements ClassSwaggerReader {
+public class SpringMvcApiReader extends AbstractReader<SpringResource> {
 
     public static final String SUCCESSFUL_OPERATION = "successful operation";
 
@@ -58,30 +57,22 @@ public class SpringMvcApiReader extends AbstractReader implements ClassSwaggerRe
     }
 
     @Override
-    public Swagger read(Set<Class<?>> classes) throws GenerateException {
+    public void read(Set<Class<?>> classes) throws GenerateException {
         //relate all methods to one base request mapping if multiple controllers exist for that mapping
         //get all methods from each controller & find their request mapping
         //create map - resource string (after first slash) as key, new SpringResource as value
         Map<String, SpringResource> resourceMap = generateResourceMap(classes);
         exceptionHandlerReader.processExceptionHandlers(classes);
         for (SpringResource resource : resourceMap.values()) {
-            read(resource);
+            read(new Context<>(resource));
         }
-
-        return swagger;
     }
 
-    public Swagger read(SpringResource resource) {
-        if (swagger == null) {
-            swagger = new Swagger();
-        }
-        List<Method> methods = resource.getMethods();
-        Map<String, Tag> tags = new HashMap<>();
-
-        List<SecurityRequirement> resourceSecurities = new ArrayList<>();
+    public void read(Context<SpringResource> ctx) {
+        List<Method> methods = ctx.resource.getMethods();
 
         // Add the description from the controller api
-        Class<?> controller = resource.getControllerClass();
+        Class<?> controller = ctx.resource.getControllerClass();
         RequestMapping controllerRM = findMergedAnnotation(controller, RequestMapping.class);
 
         String[] controllerProduces = new String[0];
@@ -92,15 +83,15 @@ public class SpringMvcApiReader extends AbstractReader implements ClassSwaggerRe
         }
 
         if (controller.isAnnotationPresent(Api.class)) {
-            Api api = findMergedAnnotation(controller, Api.class);
-            if (!canReadApi(false, api)) {
-                return swagger;
+            ctx.api = findMergedAnnotation(controller, Api.class);
+            if (!canReadApi(ctx)) {
+                return;
             }
-            tags = updateTagsForApi(null, api);
-            resourceSecurities = getSecurityRequirements(api);
+            updateTagsForApi(ctx);
+            getSecurityRequirements(ctx);
         }
 
-        resourcePath = resource.getControllerMapping();
+        resourcePath = ctx.resource.getControllerMapping();
 
         //collect api from method with @RequestMapping
         Map<String, List<Method>> apiMethodMap = collectApisByRequestMapping(methods);
@@ -111,39 +102,38 @@ public class SpringMvcApiReader extends AbstractReader implements ClassSwaggerRe
                 if (requestMapping == null) {
                     continue;
                 }
-                ApiOperation apiOperation = findMergedAnnotation(method, ApiOperation.class);
-                if (apiOperation != null && apiOperation.hidden()) {
+                ctx.apiOperation = findMergedAnnotation(method, ApiOperation.class);
+                if (ctx.apiOperation != null && ctx.apiOperation.hidden()) {
                     continue;
                 }
 
                 Map<String, String> regexMap = new HashMap<>();
-                String operationPath = parseOperationPath(path, regexMap);
+                ctx.operationPath = parseOperationPath(path, regexMap);
 
                 //http method
                 for (RequestMethod requestMethod : requestMapping.method()) {
-                    String httpMethod = requestMethod.toString().toLowerCase();
-                    Operation operation = parseMethod(method, requestMethod);
+                    ctx.httpMethod = requestMethod.toString().toLowerCase();
+                    ctx.operation = parseMethod(method, requestMethod);
 
-                    updateOperationParameters(new ArrayList<Parameter>(), regexMap, operation);
+                    updateOperationParameters(ctx, regexMap);
 
-                    updateOperationProtocols(apiOperation, operation);
+                    updateOperationProtocols(ctx);
 
-                    String[] apiProduces = requestMapping.produces();
-                    String[] apiConsumes = requestMapping.consumes();
+                    ctx.apiProduces = requestMapping.produces();
+                    ctx.apiConsumes = requestMapping.consumes();
 
-                    apiProduces = (apiProduces.length == 0) ? controllerProduces : apiProduces;
-                    apiConsumes = (apiConsumes.length == 0) ? controllerConsumes : apiConsumes;
+                    ctx.apiProduces = (ctx.apiProduces.length == 0) ? controllerProduces : ctx.apiProduces;
+                    ctx.apiConsumes = (ctx.apiConsumes.length == 0) ? controllerConsumes : ctx.apiConsumes;
 
-                    apiConsumes = updateOperationConsumes(new String[0], apiConsumes, operation);
-                    apiProduces = updateOperationProduces(new String[0], apiProduces, operation);
+                    updateOperationConsumes(ctx);
+                    updateOperationProduces(ctx);
 
-                    updateTagsForOperation(operation, apiOperation);
-                    updateOperation(apiConsumes, apiProduces, tags, resourceSecurities, operation);
-                    updatePath(operationPath, httpMethod, operation);
+                    updateTagsForOperation(ctx);
+                    updateOperation(ctx);
+                    updatePath(ctx);
                 }
             }
         }
-        return swagger;
     }
 
     private Operation parseMethod(Method method, RequestMethod requestMethod) {

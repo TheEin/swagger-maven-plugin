@@ -72,7 +72,7 @@ public class SpringSwaggerExtension extends AbstractSwaggerExtension {
          *
          * @param requestParam ignore this
          */
-        public void get(@RequestParam String requestParam) {
+        public void get(@RequestParam(required = false, defaultValue = "") String requestParam) {
         }
     }
 
@@ -171,8 +171,9 @@ public class SpringSwaggerExtension extends AbstractSwaggerExtension {
         }
 
         if (apiParam != null && apiParam.required() != paramRequired) {
-            throw new IllegalStateException("Conflicting required attribute values on annotations.\n" +
-                    apiParam + "\n" + paramAnnotation);
+            throw new IllegalStateException("Conflicting 'required' values on annotations: " +
+                    apiParam.annotationType() + "(required = " + apiParam.required() + ") but " +
+                    paramAnnotation.annotationType() + "(required = " + paramRequired + ")");
         }
         return parameters;
     }

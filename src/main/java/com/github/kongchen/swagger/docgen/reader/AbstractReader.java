@@ -65,15 +65,49 @@ import java.util.stream.Collectors;
 /**
  * @author chekong on 15/4/28.
  */
-public abstract class AbstractReader {
+public abstract class AbstractReader<R> extends ClassSwaggerReader {
+
+    protected static class Context<R> {
+
+        public Context(R resource) {
+            this.resource = resource;
+        }
+
+        public Context(Context<R> parentContext, R resource) {
+            this.resource = resource;
+            this.parentPath = parentContext.operationPath;
+            this.parentMethod = parentContext.httpMethod;
+            this.readHidden = true;
+            this.parentConsumes = parentContext.apiConsumes;
+            this.parentProduces = parentContext.apiProduces;
+            this.parentTags = parentContext.tags;
+            this.parentParameters = parentContext.operation.getParameters();
+        }
+
+        public R resource;
+        public String parentPath = "";
+        public String parentMethod;
+        public boolean readHidden;
+        public String[] parentConsumes = {};
+        public String[] parentProduces = {};
+        public Map<String, Tag> parentTags = new HashMap<>();
+        public List<Parameter> parentParameters = new ArrayList<>();
+        public Method method;
+        public String httpMethod;
+        public Operation operation = new Operation();
+        public String operationPath;
+        public ApiOperation apiOperation;
+        public Api api;
+        public String apiPath;
+        public String[] apiConsumes = {};
+        public String[] apiProduces = {};
+        public Map<String, Tag> tags = new HashMap<>();
+        public List<SecurityRequirement> securities = new ArrayList<>();
+    }
 
     private static final ResponseContainerConverter RESPONSE_CONTAINER_CONVERTER = new ResponseContainerConverter();
 
     private Set<Type> typesToSkip = new HashSet<>();
-
-    protected final Log log;
-
-    protected Swagger swagger;
 
     protected List<ResponseMessageOverride> responseMessageOverrides;
 
@@ -89,12 +123,8 @@ public abstract class AbstractReader {
         return typesToSkip;
     }
 
-    public void setTypesToSkip(List<Type> typesToSkip) {
+    public void setTypesToSkip(Collection<Type> typesToSkip) {
         this.typesToSkip = new HashSet<>(typesToSkip);
-    }
-
-    public void setTypesToSkip(Set<Type> typesToSkip) {
-        this.typesToSkip = typesToSkip;
     }
 
     public void addTypeToSkippedTypes(Type type) {
@@ -110,8 +140,7 @@ public abstract class AbstractReader {
     }
 
     public AbstractReader(Swagger swagger, Log log) {
-        this.swagger = swagger;
-        this.log = log;
+        super(swagger, log);
         updateExtensionChain();
     }
 
@@ -126,13 +155,12 @@ public abstract class AbstractReader {
         });
     }
 
-    protected List<SecurityRequirement> getSecurityRequirements(Api api) {
-        List<SecurityRequirement> securities = new ArrayList<>();
-        if (api == null) {
-            return securities;
+    protected void getSecurityRequirements(Context<R> ctx) {
+        if (ctx.api == null) {
+            return;
         }
 
-        for (Authorization auth : api.authorizations()) {
+        for (Authorization auth : ctx.api.authorizations()) {
             if (auth.value().isEmpty()) {
                 continue;
             }
@@ -143,22 +171,21 @@ public abstract class AbstractReader {
                     security.addScope(scope.scope());
                 }
             }
-            securities.add(security);
+            ctx.securities.add(security);
         }
-        return securities;
     }
 
     protected String parseOperationPath(String operationPath, Map<String, String> regexMap) {
         return PathUtils.parsePath(operationPath, regexMap);
     }
 
-    protected void updateOperationParameters(List<Parameter> parentParameters, Map<String, String> regexMap, Operation operation) {
-        if (parentParameters != null) {
-            for (Parameter param : parentParameters) {
-                operation.parameter(param);
+    protected void updateOperationParameters(Context<R> ctx, Map<String, String> regexMap) {
+        if (ctx.parentParameters != null) {
+            for (Parameter param : ctx.parentParameters) {
+                ctx.operation.parameter(param);
             }
         }
-        for (Parameter param : operation.getParameters()) {
+        for (Parameter param : ctx.operation.getParameters()) {
             String pattern = regexMap.get(param.getName());
             if (pattern != null) {
                 param.setPattern(pattern);
@@ -219,32 +246,32 @@ public abstract class AbstractReader {
         return responseHeaders;
     }
 
-    protected void updatePath(String operationPath, String httpMethod, Operation operation) {
-        if (httpMethod == null) {
+    protected void updatePath(Context<R> ctx) {
+        if (ctx.httpMethod == null) {
             return;
         }
-        Path path = swagger.getPath(operationPath);
+        Path path = swagger.getPath(ctx.operationPath);
         if (path == null) {
             path = new Path();
-            swagger.path(operationPath, path);
+            swagger.path(ctx.operationPath, path);
         }
-        path.set(httpMethod, operation);
+        path.set(ctx.httpMethod, ctx.operation);
     }
 
-    protected void updateTagsForOperation(Operation operation, ApiOperation apiOperation) {
-        if (apiOperation == null) {
+    protected void updateTagsForOperation(Context<R> ctx) {
+        if (ctx.apiOperation == null) {
             return;
         }
-        for (String tag : apiOperation.tags()) {
+        for (String tag : ctx.apiOperation.tags()) {
             if (!tag.isEmpty()) {
-                operation.tag(tag);
+                ctx.operation.tag(tag);
                 swagger.tag(new Tag().name(tag));
             }
         }
     }
 
-    protected boolean canReadApi(boolean readHidden, Api api) {
-        return (api == null) || (readHidden) || (!api.hidden());
+    protected boolean canReadApi(Context<R> ctx) {
+        return (ctx.api == null) || (ctx.readHidden) || (!ctx.api.hidden());
     }
 
     protected Set<Tag> extractTags(Api api) {
@@ -274,60 +301,58 @@ public abstract class AbstractReader {
         return output;
     }
 
-    protected void updateOperationProtocols(ApiOperation apiOperation, Operation operation) {
-        if (apiOperation == null) {
+    protected void updateOperationProtocols(Context<R> ctx) {
+        if (ctx.apiOperation == null) {
             return;
         }
-        String[] protocols = apiOperation.protocols().split(",");
+        String[] protocols = ctx.apiOperation.protocols().split(",");
         for (String protocol : protocols) {
             String trimmed = protocol.trim();
             if (!trimmed.isEmpty()) {
-                operation.scheme(Scheme.forValue(trimmed));
+                ctx.operation.scheme(Scheme.forValue(trimmed));
             }
         }
     }
 
-    protected Map<String, Tag> updateTagsForApi(Map<String, Tag> parentTags, Api api) {
+    protected void updateTagsForApi(Context<R> ctx) {
         // the value will be used as a tag for 2.0 UNLESS a Tags annotation is present
-        Map<String, Tag> tagsMap = new HashMap<>();
-        for (Tag tag : extractTags(api)) {
-            tagsMap.put(tag.getName(), tag);
+        for (Tag tag : extractTags(ctx.api)) {
+            ctx.tags.put(tag.getName(), tag);
         }
-        if (parentTags != null) {
-            tagsMap.putAll(parentTags);
+        if (ctx.parentTags != null) {
+            ctx.tags.putAll(ctx.parentTags);
         }
-        for (Tag tag : tagsMap.values()) {
+        for (Tag tag : ctx.tags.values()) {
             swagger.tag(tag);
         }
-        return tagsMap;
     }
 
     protected boolean isPrimitive(Type cls) {
         return com.github.kongchen.swagger.docgen.util.TypeUtils.isPrimitive(cls);
     }
 
-    protected void updateOperation(String[] apiConsumes, String[] apiProduces, Map<String, Tag> tags, List<SecurityRequirement> securities, Operation operation) {
-        if (operation == null) {
+    protected void updateOperation(Context<R> ctx) {
+        if (ctx.operation == null) {
             return;
         }
-        if (operation.getConsumes() == null) {
-            for (String mediaType : apiConsumes) {
-                operation.consumes(mediaType);
+        if (ctx.operation.getConsumes() == null) {
+            for (String mediaType : ctx.apiConsumes) {
+                ctx.operation.consumes(mediaType);
             }
         }
-        if (operation.getProduces() == null) {
-            for (String mediaType : apiProduces) {
-                operation.produces(mediaType);
+        if (ctx.operation.getProduces() == null) {
+            for (String mediaType : ctx.apiProduces) {
+                ctx.operation.produces(mediaType);
             }
         }
 
-        if (operation.getTags() == null) {
-            for (String tagString : tags.keySet()) {
-                operation.tag(tagString);
+        if (ctx.operation.getTags() == null) {
+            for (String tagString : ctx.tags.keySet()) {
+                ctx.operation.tag(tagString);
             }
         }
-        for (SecurityRequirement security : securities) {
-            operation.security(security);
+        for (SecurityRequirement security : ctx.securities) {
+            ctx.operation.security(security);
         }
     }
 
@@ -440,28 +465,26 @@ public abstract class AbstractReader {
         }
     }
 
-    protected String[] updateOperationProduces(String[] parentProduces, String[] apiProduces, Operation operation) {
-        if (parentProduces != null) {
-            Set<String> both = new LinkedHashSet<>(Arrays.asList(apiProduces));
-            both.addAll(Arrays.asList(parentProduces));
-            if (operation.getProduces() != null) {
-                both.addAll(operation.getProduces());
+    protected void updateOperationProduces(Context<R> ctx) {
+        if (ctx.parentProduces != null) {
+            Set<String> both = new LinkedHashSet<>(Arrays.asList(ctx.apiProduces));
+            both.addAll(Arrays.asList(ctx.parentProduces));
+            if (ctx.operation.getProduces() != null) {
+                both.addAll(ctx.operation.getProduces());
             }
-            apiProduces = both.toArray(new String[both.size()]);
+            ctx.apiProduces = both.toArray(new String[0]);
         }
-        return apiProduces;
     }
 
-    protected String[] updateOperationConsumes(String[] parentConsumes, String[] apiConsumes, Operation operation) {
-        if (parentConsumes != null) {
-            Set<String> both = new LinkedHashSet<>(Arrays.asList(apiConsumes));
-            both.addAll(Arrays.asList(parentConsumes));
-            if (operation.getConsumes() != null) {
-                both.addAll(operation.getConsumes());
+    protected void updateOperationConsumes(Context<R> ctx) {
+        if (ctx.parentConsumes != null) {
+            Set<String> both = new LinkedHashSet<>(Arrays.asList(ctx.apiConsumes));
+            both.addAll(Arrays.asList(ctx.parentConsumes));
+            if (ctx.operation.getConsumes() != null) {
+                both.addAll(ctx.operation.getConsumes());
             }
-            apiConsumes = both.toArray(new String[both.size()]);
+            ctx.apiConsumes = both.toArray(new String[0]);
         }
-        return apiConsumes;
     }
 
     protected void readImplicitParameters(Method method, Operation operation) {

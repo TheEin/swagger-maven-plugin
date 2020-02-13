@@ -71,13 +71,13 @@ import static org.apache.commons.lang3.StringUtils.isEmpty;
 /**
  * @author chekong 05/13/2013
  */
-public abstract class AbstractDocumentSource<D extends AbstractReader & ClassSwaggerReader> {
+public abstract class AbstractDocumentSource<D extends AbstractReader> {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AbstractDocumentSource.class);
 
+    protected final Log log;
     protected final ApiSource apiSource;
-    protected final Log LOG;
-    protected final List<Type> typesToSkip = new ArrayList<Type>();
+    protected final List<Type> typesToSkip = new ArrayList<>();
     protected Swagger swagger;
     protected String swaggerSchemaConverter;
     private final String outputPath;
@@ -90,7 +90,7 @@ public abstract class AbstractDocumentSource<D extends AbstractReader & ClassSwa
     protected String encoding = "UTF-8";
 
     public AbstractDocumentSource(Log log, ApiSource apiSource, String encoding) throws MojoFailureException {
-        LOG = log;
+        this.log = log;
         this.outputPath = apiSource.getOutputPath();
         this.templatePath = apiSource.getTemplatePath();
         this.swaggerPath = apiSource.getSwaggerDirectory();
@@ -130,18 +130,12 @@ public abstract class AbstractDocumentSource<D extends AbstractReader & ClassSwa
 
     public void loadDocuments() throws GenerateException {
         ClassSwaggerReader reader = resolveApiReader();
-
-        loadSwaggerExtensions(apiSource);
-
-        swagger = reader.read(getValidClasses());
-
-        swagger = removeBasePathFromEndpoints(swagger, apiSource.getRemoveBasePathFromEndpoints());
-
-        swagger = addSecurityDefinitions(swagger, apiSource);
-
+        loadSwaggerExtensions();
+        reader.read(getValidClasses());
+        removeBasePathFromEndpoints();
+        addSecurityDefinitions();
         removeEmptyTags();
-
-        swagger = doFilter(swagger);
+        doFilter();
     }
 
     private void removeEmptyTags() {
@@ -162,11 +156,11 @@ public abstract class AbstractDocumentSource<D extends AbstractReader & ClassSwa
         }
     }
 
-    private Swagger doFilter(Swagger swagger) throws GenerateException {
+    private void doFilter() throws GenerateException {
         String filterClassName = apiSource.getSwaggerInternalFilter();
         if (filterClassName != null) {
             try {
-                LOG.debug(String.format("Setting filter configuration: %s", filterClassName));
+                log.debug(String.format("Setting filter configuration: %s", filterClassName));
                 FilterFactory.setFilter((SwaggerSpecFilter) Class.forName(filterClassName).newInstance());
             } catch (Exception e) {
                 throw new GenerateException("Cannot load: " + filterClassName, e);
@@ -175,9 +169,9 @@ public abstract class AbstractDocumentSource<D extends AbstractReader & ClassSwa
 
         SwaggerSpecFilter filter = FilterFactory.getFilter();
         if (filter == null) {
-            return swagger;
+            return;
         }
-        return new SpecFilter().filter(
+        swagger = new SpecFilter().filter(
                 swagger,
                 filter,
                 new HashMap<String, List<String>>(),
@@ -185,26 +179,24 @@ public abstract class AbstractDocumentSource<D extends AbstractReader & ClassSwa
                 new HashMap<String, List<String>>());
     }
 
-    private Swagger addSecurityDefinitions(final Swagger swagger, ApiSource apiSource) throws GenerateException {
-        Swagger result = swagger;
+    private void addSecurityDefinitions() throws GenerateException {
         if (apiSource.getSecurityDefinitions() == null) {
-            return result;
+            return;
         }
-        Map<String, SecuritySchemeDefinition> definitions = new TreeMap<String, SecuritySchemeDefinition>();
+        Map<String, SecuritySchemeDefinition> definitions = new TreeMap<>();
         for (SecurityDefinition sd : apiSource.getSecurityDefinitions()) {
             for (Map.Entry<String, SecuritySchemeDefinition> entry : sd.generateSecuritySchemeDefinitions().entrySet()) {
                 definitions.put(entry.getKey(), entry.getValue());
             }
         }
-        result.setSecurityDefinitions(definitions);
-        return result;
+        swagger.setSecurityDefinitions(definitions);
     }
 
     /**
      * The reader may modify the extensions list, therefore add the additional swagger extensions
      * after the instantiation of the reader
      */
-    private void loadSwaggerExtensions(ApiSource apiSource) throws GenerateException {
+    private void loadSwaggerExtensions() throws GenerateException {
         if (apiSource.getSwaggerExtensions() != null) {
             List<SwaggerExtension> extensions = SwaggerExtensions.getExtensions();
             extensions.addAll(resolveSwaggerExtensions());
@@ -353,22 +345,20 @@ public abstract class AbstractDocumentSource<D extends AbstractReader & ClassSwa
         }
     }
 
-    protected Swagger removeBasePathFromEndpoints(Swagger swagger, boolean removeBasePathFromEndpoints) {
-        Swagger result = swagger;
-        if (!removeBasePathFromEndpoints) {
-            return result;
+    protected void removeBasePathFromEndpoints() {
+        if (!apiSource.getRemoveBasePathFromEndpoints()) {
+            return;
         }
         String basePath = swagger.getBasePath();
         if (isEmpty(basePath)) {
-            return result;
+            return;
         }
-        Map<String, Path> oldPathMap = result.getPaths();
-        Map<String, Path> newPathMap = new HashMap<String, Path>();
+        Map<String, Path> oldPathMap = swagger.getPaths();
+        Map<String, Path> newPathMap = new HashMap<>();
         for (Map.Entry<String, Path> entry : oldPathMap.entrySet()) {
             newPathMap.put(entry.getKey().replace(basePath, ""), entry.getValue());
         }
-        result.setPaths(newPathMap);
-        return result;
+        swagger.setPaths(newPathMap);
     }
 
     protected File createFile(File dir, String outputResourcePath) throws IOException {
@@ -386,7 +376,7 @@ public abstract class AbstractDocumentSource<D extends AbstractReader & ClassSwa
         while (!serviceFile.createNewFile()) {
             serviceFile.delete();
         }
-        LOG.info("Creating file " + serviceFile.getAbsolutePath());
+        log.info("Creating file " + serviceFile.getAbsolutePath());
         return serviceFile;
     }
 
@@ -395,7 +385,7 @@ public abstract class AbstractDocumentSource<D extends AbstractReader & ClassSwa
             Utils.sortSwagger(swagger);
             isSorted = true;
         }
-        LOG.info("Writing doc to " + outputPath + "...");
+        log.info("Writing doc to " + outputPath + "...");
 
         try {
             FileOutputStream fileOutputStream = new FileOutputStream(outputPath);
@@ -410,7 +400,7 @@ public abstract class AbstractDocumentSource<D extends AbstractReader & ClassSwa
 
             template.apply(swagger, writer);
             writer.close();
-            LOG.info("Done!");
+            log.info("Done!");
         } catch (MalformedURLException e) {
             throw new GenerateException(e);
         } catch (IOException e) {
@@ -501,7 +491,7 @@ public abstract class AbstractDocumentSource<D extends AbstractReader & ClassSwa
                 try {
                     try {
                         Constructor<?> constructor = Class.forName(clazz).getConstructor(Log.class);
-                        extension = (SwaggerExtension) constructor.newInstance(LOG);
+                        extension = (SwaggerExtension) constructor.newInstance(log);
                     } catch (NoSuchMethodException nsme) {
                         extension = (SwaggerExtension) Class.forName(clazz).newInstance();
                     }
@@ -516,11 +506,11 @@ public abstract class AbstractDocumentSource<D extends AbstractReader & ClassSwa
 
     protected ClassSwaggerReader getCustomApiReader(String customReaderClassName) throws GenerateException {
         try {
-            LOG.info("Reading custom API reader: " + customReaderClassName);
+            log.info("Reading custom API reader: " + customReaderClassName);
             Class<?> clazz = Class.forName(customReaderClassName);
             if (AbstractReader.class.isAssignableFrom(clazz)) {
                 Constructor<?> constructor = clazz.getConstructor(Swagger.class, Log.class);
-                return (ClassSwaggerReader) constructor.newInstance(swagger, LOG);
+                return (ClassSwaggerReader) constructor.newInstance(swagger, log);
             } else {
                 return (ClassSwaggerReader) clazz.newInstance();
             }

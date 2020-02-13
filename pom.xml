@@ -6,7 +6,7 @@
     <parent>
         <groupId>com.nexign.maven</groupId>
         <artifactId>swagger-maven-nexign</artifactId>
-        <version>3.1.16</version>
+        <version>3.1.17</version>
     </parent>
 
     <artifactId>swagger-maven-plugin</artifactId>

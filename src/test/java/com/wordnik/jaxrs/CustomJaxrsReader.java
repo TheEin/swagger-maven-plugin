@@ -7,18 +7,17 @@ import java.util.Set;
 
 /**
  * @author Igor Gursky
- *         11.12.2015.
+ * 11.12.2015.
  */
 public class CustomJaxrsReader extends VendorExtensionsJaxrsReader {
 
-    public CustomJaxrsReader(Swagger swagger, Log LOG) {
-        super(swagger, LOG);
+    public CustomJaxrsReader(Swagger swagger, Log log) {
+        super(swagger, log);
     }
 
     @Override
-    public Swagger read(Set<Class<?>> classes) {
-        Swagger swagger = super.read(classes);
+    public void read(Set<Class<?>> classes) {
+        super.read(classes);
         swagger.getInfo().setDescription("Processed with CustomJaxrsReader");
-        return swagger;
     }
 }
