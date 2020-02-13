@@ -64,11 +64,11 @@ public class SpringMvcApiReader extends AbstractReader<SpringResource> {
         Map<String, SpringResource> resourceMap = generateResourceMap(classes);
         exceptionHandlerReader.processExceptionHandlers(classes);
         for (SpringResource resource : resourceMap.values()) {
-            read(new Context<>(resource));
+            read(new ResourceContext<>(resource));
         }
     }
 
-    public void read(Context<SpringResource> ctx) {
+    public void read(ResourceContext<SpringResource> ctx) {
         List<Method> methods = ctx.resource.getMethods();
 
         // Add the description from the controller api
@@ -98,39 +98,40 @@ public class SpringMvcApiReader extends AbstractReader<SpringResource> {
 
         for (String path : apiMethodMap.keySet()) {
             for (Method method : apiMethodMap.get(path)) {
+                OperationContext<SpringResource> op = new OperationContext<>(ctx);
                 RequestMapping requestMapping = findMergedAnnotation(method, RequestMapping.class);
                 if (requestMapping == null) {
                     continue;
                 }
-                ctx.apiOperation = findMergedAnnotation(method, ApiOperation.class);
-                if (ctx.apiOperation != null && ctx.apiOperation.hidden()) {
+                op.api = findMergedAnnotation(method, ApiOperation.class);
+                if (ctx.api != null && ctx.api.hidden()) {
                     continue;
                 }
 
                 Map<String, String> regexMap = new HashMap<>();
-                ctx.operationPath = parseOperationPath(path, regexMap);
+                op.path = parseOperationPath(path, regexMap);
 
                 //http method
                 for (RequestMethod requestMethod : requestMapping.method()) {
-                    ctx.httpMethod = requestMethod.toString().toLowerCase();
-                    ctx.operation = parseMethod(method, requestMethod);
+                    op.httpMethod = requestMethod.toString().toLowerCase();
+                    op.operation = parseMethod(method, requestMethod);
 
-                    updateOperationParameters(ctx, regexMap);
+                    updateOperationParameters(op, regexMap);
 
-                    updateOperationProtocols(ctx);
+                    updateOperationProtocols(op);
 
-                    ctx.apiProduces = requestMapping.produces();
-                    ctx.apiConsumes = requestMapping.consumes();
+                    op.produces = requestMapping.produces();
+                    op.consumes = requestMapping.consumes();
 
-                    ctx.apiProduces = (ctx.apiProduces.length == 0) ? controllerProduces : ctx.apiProduces;
-                    ctx.apiConsumes = (ctx.apiConsumes.length == 0) ? controllerConsumes : ctx.apiConsumes;
+                    op.produces = (op.produces.length == 0) ? controllerProduces : op.produces;
+                    op.consumes = (op.consumes.length == 0) ? controllerConsumes : op.consumes;
 
-                    updateOperationConsumes(ctx);
-                    updateOperationProduces(ctx);
+                    updateOperationConsumes(op);
+                    updateOperationProduces(op);
 
-                    updateTagsForOperation(ctx);
-                    updateOperation(ctx);
-                    updatePath(ctx);
+                    updateTagsForOperation(op);
+                    updateOperation(op);
+                    updatePath(op);
                 }
             }
         }

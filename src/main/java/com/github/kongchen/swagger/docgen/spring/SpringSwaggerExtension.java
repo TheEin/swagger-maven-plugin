@@ -38,6 +38,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.ValueConstants;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.beans.PropertyDescriptor;
@@ -61,8 +62,6 @@ public class SpringSwaggerExtension extends AbstractSwaggerExtension {
 
     private static final Logger log = LoggerFactory.getLogger(SpringSwaggerExtension.class);
 
-    private static final String DEFAULT_VALUE = "\n\t\t\n\t\t\n\ue000\ue001\ue002\n\t\t\t\t\n";
-
     private static final RequestParam DEFAULT_REQUEST_PARAM = (RequestParam) MethodUtils.getMatchingMethod(AnnotationBearer.class, "get", String.class).getParameterAnnotations()[0][0];
 
     // Class specificly for holding default value annotations
@@ -72,7 +71,7 @@ public class SpringSwaggerExtension extends AbstractSwaggerExtension {
          *
          * @param requestParam ignore this
          */
-        public void get(@RequestParam(required = false, defaultValue = "") String requestParam) {
+        public void get(@RequestParam String requestParam) {
         }
     }
 
@@ -131,11 +130,16 @@ public class SpringSwaggerExtension extends AbstractSwaggerExtension {
         boolean paramRequired;
 
         if (isRequestParamType(type, annotations)) {
-            RequestParam requestParam = Optional
-                    .ofNullable(annotations.getInstance(RequestParam.class))
-                    .orElse(DEFAULT_REQUEST_PARAM);
-            paramAnnotation = requestParam;
-            paramRequired = requestParam.required();
+            RequestParam requestParam = annotations.getInstance(RequestParam.class);
+            if (requestParam == null) {
+                paramAnnotation = requestParam = DEFAULT_REQUEST_PARAM;
+                paramRequired = Optional.ofNullable(apiParam)
+                        .map(ApiParam::required)
+                        .orElse(requestParam.required());
+            } else {
+                paramAnnotation = requestParam;
+                paramRequired = requestParam.required();
+            }
             parameters = Collections.singletonList(extractRequestParam(type, requestParam));
         } else if (annotations.containsKey(PathVariable.class)) {
             PathVariable pathVariable = annotations.getInstance(PathVariable.class);
@@ -183,7 +187,7 @@ public class SpringSwaggerExtension extends AbstractSwaggerExtension {
         QueryParameter queryParameter = new QueryParameter().name(paramName)
                 .required(requestParam.required());
 
-        if (!DEFAULT_VALUE.equals(requestParam.defaultValue())) {
+        if (!ValueConstants.DEFAULT_NONE.equals(requestParam.defaultValue())) {
             queryParameter.setDefaultValue(requestParam.defaultValue());
             // Supplying a default value implicitly sets required() to false.
             queryParameter.setRequired(false);
@@ -224,7 +228,7 @@ public class SpringSwaggerExtension extends AbstractSwaggerExtension {
         CookieParameter cookieParameter = new CookieParameter().name(paramName)
                 .required(cookieValue.required());
         Property schema = readAsPropertyIfPrimitive(type);
-        if (!DEFAULT_VALUE.equals(cookieValue.defaultValue())) {
+        if (!ValueConstants.DEFAULT_NONE.equals(cookieValue.defaultValue())) {
             cookieParameter.setDefaultValue(cookieValue.defaultValue());
             cookieParameter.setRequired(false);
         }
@@ -239,7 +243,7 @@ public class SpringSwaggerExtension extends AbstractSwaggerExtension {
         HeaderParameter headerParameter = new HeaderParameter().name(paramName)
                 .required(requestHeader.required());
         Property schema = readAsPropertyIfPrimitive(type);
-        if (!DEFAULT_VALUE.equals(requestHeader.defaultValue())) {
+        if (!ValueConstants.DEFAULT_NONE.equals(requestHeader.defaultValue())) {
             headerParameter.setDefaultValue(requestHeader.defaultValue());
             headerParameter.setRequired(false);
         }

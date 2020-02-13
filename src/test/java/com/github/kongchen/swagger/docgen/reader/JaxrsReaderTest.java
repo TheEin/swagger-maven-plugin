@@ -87,7 +87,7 @@ public class JaxrsReaderTest {
 
     @Test
     public void includeApiIfHiddenParameterIsTrueAndApiHiddenAttributeIsTrue() {
-        AbstractReader.Context<Class<?>> ctx = new AbstractReader.Context<>(HiddenApi.class);
+        AbstractReader.ResourceContext<Class<?>> ctx = new AbstractReader.ResourceContext<>(HiddenApi.class);
         ctx.readHidden = true;
         reader.read(ctx);
 

@@ -100,9 +100,9 @@ public class NginxJaxrsReader extends JaxrsReader {
     }
 
     @Override
-    protected void updatePath(Context<Class<?>> ctx) {
-        ctx.operationPath = revertPath(ctx.operationPath, ctx.httpMethod, ctx.operation);
-        super.updatePath(ctx);
+    protected void updatePath(OperationContext<Class<?>> op) {
+        op.path = revertPath(op.path, op.httpMethod, op.operation);
+        super.updatePath(op);
     }
 
     private String revertPath(String operationPath, String httpMethod, Operation operation) {

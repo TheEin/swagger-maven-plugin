@@ -22,7 +22,7 @@ public class CustomSpringMvcReader extends VendorExtensionsSpringMvcReader {
         Map<String, SpringResource> resourceMap = generateResourceMap(classes);
         for (String str : resourceMap.keySet()) {
             SpringResource resource = resourceMap.get(str);
-            read(new Context<>(resource));
+            read(new ResourceContext<>(resource));
         }
         swagger.getInfo().setDescription("Processed with CustomSpringMvcReader");
     }
