@@ -16,6 +16,9 @@ public abstract class ClassSwaggerReader {
     protected final Log log;
 
     public ClassSwaggerReader(Swagger swagger, Log log) {
+        if (swagger == null) {
+            throw new NullPointerException("swagger");
+        }
         this.swagger = swagger;
         this.log = log;
     }

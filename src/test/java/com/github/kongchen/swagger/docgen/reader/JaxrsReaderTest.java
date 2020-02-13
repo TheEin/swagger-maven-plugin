@@ -30,6 +30,7 @@ import org.apache.maven.plugin.logging.Log;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -100,16 +101,6 @@ public class JaxrsReaderTest {
         Tag expectedTag = new Tag();
         expectedTag.name("atag");
         reader.read(AnApi.class);
-
-        assertSwaggerResponseContents(expectedTag, reader.getSwagger());
-    }
-
-    @Test
-    public void createNewSwaggerInstanceIfNoneProvided() {
-        JaxrsReader nullReader = new JaxrsReader(null, log);
-        Tag expectedTag = new Tag();
-        expectedTag.name("atag");
-        nullReader.read(AnApi.class);
 
         assertSwaggerResponseContents(expectedTag, reader.getSwagger());
     }
@@ -331,7 +322,8 @@ public class JaxrsReaderTest {
         @ApiOperation(value = "Add content")
         @Consumes(MediaType.APPLICATION_OCTET_STREAM)
         public void addOperation(
-                @ApiParam(value = "content", required = true, type = "string", format = "byte") final byte[] content) {
+                @ApiParam(value = "content", required = true, type = "string", format = "byte")
+                @RequestBody final byte[] content) {
         }
     }
 
