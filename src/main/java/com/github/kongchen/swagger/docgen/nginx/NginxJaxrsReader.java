@@ -37,6 +37,8 @@ public class NginxJaxrsReader extends JaxrsReader {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(NginxJaxrsReader.class);
 
+    public static final String OPERATION_ID_FORMAT = "{{className}}.{{methodName}}";
+
     private final NgxConfig config;
 
     private final List<NginxRewrite> additionalRewrites;
@@ -48,6 +50,8 @@ public class NginxJaxrsReader extends JaxrsReader {
     public NginxJaxrsReader(Swagger swagger, NginxConfig nginxConfig, Log log) {
         super(swagger, log);
 
+        setOperationIdFormat(OPERATION_ID_FORMAT);
+
         if (nginxConfig == null || !nginxConfig.isEnabled()) {
             config = null;
             additionalRewrites = null;
@@ -55,15 +59,7 @@ public class NginxJaxrsReader extends JaxrsReader {
             urlTags = null;
         } else {
             try {
-                DirectoryStream.Filter<Path> excludeFilter = nginxConfig.getExcludeLocations() == null ? null :
-                        path -> {
-                            for (String location : nginxConfig.getExcludeLocations()) {
-                                if (path.endsWith(location)) {
-                                    return true;
-                                }
-                            }
-                            return false;
-                        };
+                DirectoryStream.Filter<Path> excludeFilter = createFilter(nginxConfig.getExcludeLocations());
                 NginxConfigReader reader = new NginxConfigReader(excludeFilter, nginxConfig.getProperties());
                 config = reader.read(nginxConfig.getLocation());
                 additionalRewrites = nginxConfig.getAdditionalRewrites();
@@ -73,6 +69,20 @@ public class NginxJaxrsReader extends JaxrsReader {
                 throw new RuntimeException("Failed to load config", e);
             }
         }
+    }
+
+    private static DirectoryStream.Filter<Path> createFilter(List<String> locations) {
+        if (locations == null) {
+            return null;
+        }
+        return path -> {
+            for (String location : locations) {
+                if (path.endsWith(location)) {
+                    return true;
+                }
+            }
+            return false;
+        };
     }
 
     private static List<UrlTag> createUrlTags(List<NginxTag> tags) {

@@ -43,8 +43,6 @@ import static org.springframework.core.annotation.AnnotationUtils.findAnnotation
 
 public class SpringMvcApiReader extends AbstractReader<SpringResource> {
 
-    public static final String SUCCESSFUL_OPERATION = "successful operation";
-
     private static final ResponseContainerConverter RESPONSE_CONTAINER_CONVERTER = new ResponseContainerConverter();
 
     private final SpringExceptionHandlerReader exceptionHandlerReader;
@@ -302,13 +300,11 @@ public class SpringMvcApiReader extends AbstractReader<SpringResource> {
         }
 
         // Process @ApiImplicitParams
-        this.readImplicitParameters(method, operation);
+        readImplicitParameters(method, operation);
 
         processOperationDecorator(operation, method);
 
-        if (operation.getResponses() == null) {
-            operation.defaultResponse(new Response().description(SUCCESSFUL_OPERATION));
-        }
+        addImplicitResponses(operation);
 
         return operation;
     }

@@ -501,8 +501,6 @@ paths:
           description: "Some vendor error description"
         501:
           description: "Some vendor error description added using swaggerExtension"
-        default:
-          description: "successful operation"
       security:
       - petstore_auth:
         - "write:pets"

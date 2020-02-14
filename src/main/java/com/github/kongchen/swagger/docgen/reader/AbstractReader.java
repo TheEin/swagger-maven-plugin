@@ -53,6 +53,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -102,6 +103,7 @@ public abstract class AbstractReader<R> extends ClassSwaggerReader {
 
         public OperationContext(ResourceContext<R> ctx) {
             this.ctx = ctx;
+            operation.setResponses(new LinkedHashMap<>());
         }
 
         public final ResourceContext<R> ctx;
@@ -114,6 +116,19 @@ public abstract class AbstractReader<R> extends ClassSwaggerReader {
         public Operation operation = new Operation();
     }
 
+    public static final String PACKAGE_NAME = "{{packageName}}";
+    public static final String CLASS_NAME = "{{className}}";
+    public static final String METHOD_NAME = "{{methodName}}";
+    public static final String HTTP_METHOD = "{{httpMethod}}";
+
+    /**
+     * Supported parameters: {{packageName}}, {{className}}, {{methodName}}, {{httpMethod}}
+     * Suggested default value is: "{{className}}_{{methodName}}_{{httpMethod}}"
+     */
+    public static final String OPERATION_ID_FORMAT_DEFAULT = METHOD_NAME;
+
+    public static final String SUCCESSFUL_OPERATION = "successful operation";
+
     private static final ResponseContainerConverter RESPONSE_CONTAINER_CONVERTER = new ResponseContainerConverter();
 
     private Set<Type> typesToSkip = new HashSet<>();
@@ -121,12 +136,6 @@ public abstract class AbstractReader<R> extends ClassSwaggerReader {
     protected List<ResponseMessageOverride> responseMessageOverrides;
 
     protected String operationIdFormat;
-
-    /**
-     * Supported parameters: {{packageName}}, {{className}}, {{methodName}}, {{httpMethod}}
-     * Suggested default value is: "{{className}}_{{methodName}}_{{httpMethod}}"
-     */
-    public static final String OPERATION_ID_FORMAT_DEFAULT = "{{className}}.{{methodName}}";
 
     public Set<Type> getTypesToSkip() {
         return typesToSkip;
@@ -543,11 +552,21 @@ public abstract class AbstractReader<R> extends ClassSwaggerReader {
             return null;
         }
 
-        return ParameterProcessor.applyAnnotations(swagger, parameter, apiClass, Arrays.asList(new Annotation[]{param}));
+        return ParameterProcessor.applyAnnotations(swagger, parameter, apiClass, Collections.singletonList(param));
     }
 
     void processOperationDecorator(Operation operation, Method method) {
         SwaggerExtensionChain.decorateOperation(operation, method);
+    }
+
+    protected void addImplicitResponses(Operation operation) {
+        boolean addDefaultResponse = Optional
+                .ofNullable(operation.getResponses())
+                .map(Map::isEmpty)
+                .orElse(true);
+        if (addDefaultResponse) {
+            operation.defaultResponse(new Response().description(SUCCESSFUL_OPERATION));
+        }
     }
 
     protected String getOperationId(Method method, String httpMethod) {
@@ -560,10 +579,10 @@ public abstract class AbstractReader<R> extends ClassSwaggerReader {
         String methodName = method.getName();
 
         StrBuilder sb = new StrBuilder(this.operationIdFormat);
-        sb.replaceAll("{{packageName}}", packageName);
-        sb.replaceAll("{{className}}", className);
-        sb.replaceAll("{{methodName}}", methodName);
-        sb.replaceAll("{{httpMethod}}", httpMethod);
+        sb.replaceAll(PACKAGE_NAME, packageName);
+        sb.replaceAll(CLASS_NAME, className);
+        sb.replaceAll(METHOD_NAME, methodName);
+        sb.replaceAll(HTTP_METHOD, httpMethod);
 
         return sb.toString();
     }

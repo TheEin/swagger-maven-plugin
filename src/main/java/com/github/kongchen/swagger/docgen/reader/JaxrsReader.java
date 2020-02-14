@@ -61,8 +61,6 @@ import java.util.Set;
 
 public class JaxrsReader extends AbstractReader<Class<?>> {
 
-    public static final String SUCCESSFUL_OPERATION = "successful operation";
-
     private static final Logger LOGGER = LoggerFactory.getLogger(JaxrsReader.class);
 
     private static final ResponseContainerConverter RESPONSE_CONTAINER_CONVERTER = new ResponseContainerConverter();
@@ -166,11 +164,12 @@ public class JaxrsReader extends AbstractReader<Class<?>> {
         String methodPath = resolveMethodPath(op.method);
 
         //is method default handler within a subresource
-        if (op.ctx.path == null && methodPath == null && op.ctx.parentPath != null && op.ctx.readHidden) {
+        String parentPath = op.ctx.parentPath;
+        if (op.ctx.path == null && methodPath == null && parentPath != null && op.ctx.readHidden) {
             methodPath = op.ctx.parentPath;
-            op.ctx.parentPath = null;
+            parentPath = null;
         }
-        op.path = getPath(op.ctx.path, methodPath, op.ctx.parentPath);
+        op.path = getPath(op.ctx.path, methodPath, parentPath);
         if (op.path != null) {
             Map<String, String> regexMap = new HashMap<>();
             op.path = parseOperationPath(op.path, regexMap);
@@ -348,7 +347,7 @@ public class JaxrsReader extends AbstractReader<Class<?>> {
     }
 
 
-    public void parseMethod(OperationContext<Class<?>> op) {
+    private void parseMethod(OperationContext<Class<?>> op) {
         int responseCode = 200;
         ApiOperation apiOperation = AnnotationUtils.findAnnotation(op.method, ApiOperation.class);
 
@@ -497,13 +496,11 @@ public class JaxrsReader extends AbstractReader<Class<?>> {
         }
 
         // Process @ApiImplicitParams
-        this.readImplicitParameters(op.method, op.operation);
+        readImplicitParameters(op.method, op.operation);
 
         processOperationDecorator(op.operation, op.method);
 
-        if (op.operation.getResponses() == null) {
-            op.operation.defaultResponse(new Response().description(SUCCESSFUL_OPERATION));
-        }
+        addImplicitResponses(op.operation);
     }
 
     public static Annotation[][] findParamAnnotations(Method method) {
