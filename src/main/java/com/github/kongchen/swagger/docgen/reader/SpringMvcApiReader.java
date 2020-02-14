@@ -62,7 +62,11 @@ public class SpringMvcApiReader extends AbstractReader<SpringResource> {
         Map<String, SpringResource> resourceMap = generateResourceMap(classes);
         exceptionHandlerReader.processExceptionHandlers(classes);
         for (SpringResource resource : resourceMap.values()) {
-            read(new ResourceContext<>(resource));
+            try {
+                read(new ResourceContext<>(resource));
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to read Swagger specs for resource " + resource, e);
+            }
         }
     }
 
@@ -73,11 +77,14 @@ public class SpringMvcApiReader extends AbstractReader<SpringResource> {
         Class<?> controller = ctx.resource.getControllerClass();
         RequestMapping controllerRM = findMergedAnnotation(controller, RequestMapping.class);
 
-        String[] controllerProduces = new String[0];
-        String[] controllerConsumes = new String[0];
-        if (controllerRM != null) {
-            controllerConsumes = controllerRM.consumes();
+        String[] controllerProduces;
+        String[] controllerConsumes;
+        if (controllerRM == null) {
+            controllerProduces = new String[0];
+            controllerConsumes = new String[0];
+        } else {
             controllerProduces = controllerRM.produces();
+            controllerConsumes = controllerRM.consumes();
         }
 
         if (controller.isAnnotationPresent(Api.class)) {
@@ -97,41 +104,54 @@ public class SpringMvcApiReader extends AbstractReader<SpringResource> {
         for (String path : apiMethodMap.keySet()) {
             for (Method method : apiMethodMap.get(path)) {
                 OperationContext<SpringResource> op = new OperationContext<>(ctx);
-                RequestMapping requestMapping = findMergedAnnotation(method, RequestMapping.class);
-                if (requestMapping == null) {
-                    continue;
-                }
-                op.api = findMergedAnnotation(method, ApiOperation.class);
-                if (ctx.api != null && ctx.api.hidden()) {
-                    continue;
-                }
-
-                Map<String, String> regexMap = new HashMap<>();
-                op.path = parseOperationPath(path, regexMap);
-
-                //http method
-                for (RequestMethod requestMethod : requestMapping.method()) {
-                    op.httpMethod = requestMethod.toString().toLowerCase();
-                    op.operation = parseMethod(method, requestMethod);
-
-                    updateOperationParameters(op, regexMap);
-
-                    updateOperationProtocols(op);
-
-                    op.produces = requestMapping.produces();
-                    op.consumes = requestMapping.consumes();
-
-                    op.produces = (op.produces.length == 0) ? controllerProduces : op.produces;
-                    op.consumes = (op.consumes.length == 0) ? controllerConsumes : op.consumes;
-
-                    updateOperationConsumes(op);
-                    updateOperationProduces(op);
-
-                    updateTagsForOperation(op);
-                    updateOperation(op);
-                    updatePath(op);
+                op.path = path;
+                op.method = method;
+                try {
+                    readOperation(op, controllerProduces, controllerConsumes);
+                } catch (Exception e) {
+                    throw new RuntimeException("Failed to read Swagger specs for method " + method, e);
                 }
             }
+        }
+    }
+
+    protected void readOperation(OperationContext<SpringResource> op, String[] controllerProduces, String[] controllerConsumes) {
+        RequestMapping requestMapping = findMergedAnnotation(op.method, RequestMapping.class);
+        if (requestMapping == null) {
+            return;
+        }
+        op.api = findMergedAnnotation(op.method, ApiOperation.class);
+        if (op.ctx.api != null && op.ctx.api.hidden()) {
+            return;
+        }
+
+        Map<String, String> regexMap = new HashMap<>();
+        op.path = parseOperationPath(op.path, regexMap);
+
+        //http method
+        for (RequestMethod requestMethod : requestMapping.method()) {
+            op.httpMethod = requestMethod.toString().toLowerCase();
+            op.operation = parseMethod(op.method, requestMethod);
+
+            if (op.operation == null) {
+                continue;
+            }
+            updateOperationParameters(op, regexMap);
+
+            updateOperationProtocols(op);
+
+            op.produces = requestMapping.produces();
+            op.consumes = requestMapping.consumes();
+
+            op.produces = (op.produces.length == 0) ? controllerProduces : op.produces;
+            op.consumes = (op.consumes.length == 0) ? controllerConsumes : op.consumes;
+
+            updateOperationConsumes(op);
+            updateOperationProduces(op);
+
+            updateTagsForOperation(op);
+            updateOperation(op);
+            updatePath(op);
         }
     }
 

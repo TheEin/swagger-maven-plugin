@@ -87,8 +87,13 @@ public class SpringSwaggerExtension extends AbstractSwaggerExtension {
 
     @Override
     public List<Parameter> extractParameters(List<Annotation> annotations, Type type, Set<Type> typesToSkip, Iterator<SwaggerExtension> chain) {
-        if (this.shouldIgnoreType(type, typesToSkip)) {
-            return Collections.emptyList();
+        try {
+            TypeUtils.getRawType(type, type);
+        } catch (IllegalArgumentException e) {
+            return super.extractParameters(annotations, type, typesToSkip, chain);
+        }
+        if (shouldIgnoreType(type, typesToSkip)) {
+            return super.extractParameters(annotations, type, typesToSkip, chain);
         }
         ClassToInstanceMap<Annotation> annotationMap = toMap(annotations);
 
@@ -129,19 +134,7 @@ public class SpringSwaggerExtension extends AbstractSwaggerExtension {
         Annotation paramAnnotation;
         boolean paramRequired;
 
-        if (isRequestParamType(type, annotations)) {
-            RequestParam requestParam = annotations.getInstance(RequestParam.class);
-            if (requestParam == null) {
-                paramAnnotation = requestParam = DEFAULT_REQUEST_PARAM;
-                paramRequired = Optional.ofNullable(apiParam)
-                        .map(ApiParam::required)
-                        .orElse(requestParam.required());
-            } else {
-                paramAnnotation = requestParam;
-                paramRequired = requestParam.required();
-            }
-            parameters = Collections.singletonList(extractRequestParam(type, requestParam));
-        } else if (annotations.containsKey(PathVariable.class)) {
+        if (annotations.containsKey(PathVariable.class)) {
             PathVariable pathVariable = annotations.getInstance(PathVariable.class);
             paramAnnotation = pathVariable;
             paramRequired = pathVariable.required();
@@ -170,6 +163,19 @@ public class SpringSwaggerExtension extends AbstractSwaggerExtension {
             paramAnnotation = requestBody;
             paramRequired = requestBody.required();
             parameters = Collections.emptyList();
+
+        } else if (isRequestParamType(type, annotations)) {
+            RequestParam requestParam = annotations.getInstance(RequestParam.class);
+            if (requestParam == null) {
+                paramAnnotation = requestParam = DEFAULT_REQUEST_PARAM;
+                paramRequired = Optional.ofNullable(apiParam)
+                        .map(ApiParam::required)
+                        .orElse(requestParam.required());
+            } else {
+                paramAnnotation = requestParam;
+                paramRequired = requestParam.required();
+            }
+            parameters = Collections.singletonList(extractRequestParam(type, requestParam));
         } else {
             return Collections.emptyList();
         }

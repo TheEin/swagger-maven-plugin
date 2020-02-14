@@ -40,12 +40,16 @@ public class ContainerParamExtension extends AbstractSwaggerExtension implements
 
     @Override
     public List<Parameter> extractParameters(List<Annotation> annotations, Type type, Set<Type> typesToSkip, Iterator<SwaggerExtension> chain) {
-        Class<?> cls = TypeUtils.getRawType(type, type);
-
+        Class<?> cls;
+        try {
+            cls = TypeUtils.getRawType(type, type);
+        } catch (IllegalArgumentException e) {
+            return super.extractParameters(annotations, type, typesToSkip, chain);
+        }
         if (shouldIgnoreClass(cls) || typesToSkip.contains(type)) {
             // stop the processing chain
             typesToSkip.add(type);
-            return Collections.emptyList();
+            return super.extractParameters(annotations, type, typesToSkip, chain);
         }
         for (Annotation annotation : annotations) {
             for (Class<?> validParameterAnnotation : CONTAINER_PARAM_ANNOTATIONS) {

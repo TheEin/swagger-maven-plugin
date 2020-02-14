@@ -557,9 +557,6 @@
           },
           "501" : {
             "description" : "Some vendor error description added using swaggerExtension"
-          },
-          "default" : {
-            "description" : "successful operation"
           }
         },
         "security" : [ {

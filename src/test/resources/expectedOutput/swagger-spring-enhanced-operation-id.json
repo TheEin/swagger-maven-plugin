@@ -1213,6 +1213,12 @@
         "operationId" : "UserResource_createUser_POST",
         "produces" : [ "application/json", "application/xml" ],
         "parameters" : [ {
+            "in":"query",
+            "name":"arbitraryString",
+            "required":true,
+            "type":"string"
+        },
+        {
           "in" : "body",
           "name" : "body",
           "description" : "Created user object",

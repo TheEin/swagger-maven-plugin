@@ -23,6 +23,8 @@ import com.wordnik.sample.model.Pet;
 
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
+import org.springframework.web.bind.annotation.RequestBody;
+
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
@@ -76,7 +78,7 @@ public class MyResourceImpl extends MyResourceAbstract<String> {
     @POST
     @ApiOperation(value = "Insert a response", notes = "This is a contrived example")
     @Override
-    public Response insertResource(@ApiParam(value = "Resource to insert", required = true) String resource) {
+    public Response insertResource(@ApiParam(value = "Resource to insert", required = true) @RequestBody String resource) {
         return Response.ok().build();
     }
 }

@@ -38,7 +38,6 @@ import io.swagger.models.properties.RefProperty;
 import io.swagger.util.ParameterProcessor;
 import io.swagger.util.PathUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.reflect.TypeUtils;
 import org.apache.commons.lang3.text.StrBuilder;
 import org.apache.maven.plugin.logging.Log;
 import org.springframework.core.annotation.AnnotationUtils;
@@ -104,6 +103,7 @@ public abstract class AbstractReader<R> extends ClassSwaggerReader {
         public OperationContext(ResourceContext<R> ctx) {
             this.ctx = ctx;
             operation.setResponses(new LinkedHashMap<>());
+            operation.setParameters(new ArrayList<>());
         }
 
         public final ResourceContext<R> ctx;
@@ -395,20 +395,18 @@ public abstract class AbstractReader<R> extends ClassSwaggerReader {
             return Collections.emptyList();
         }
 
-        Class<?> cls = TypeUtils.getRawType(type, type);
-        log.debug("Looking for path/query/header/form/cookie params in " + cls);
+        log.debug("Looking for path/query/header/form/cookie params in " + type);
 
         return SwaggerExtensionChain
                 .extractParameters(annotations, type, typesToSkip)
                 .map(parameters -> parameters.stream()
                         .map(parameter -> ParameterProcessor.applyAnnotations(swagger, parameter, type, annotations))
                         .filter(Objects::nonNull)
-                        .filter(parameter -> !StringUtils.isBlank(parameter.getName()))
                         .collect(Collectors.toList()))
                 .filter(((Predicate<List<Parameter>>) List::isEmpty).negate())
                 .orElseGet(() -> {
                     if (typesToSkip.isEmpty()) {
-                        log.debug("Looking for body params in " + cls);
+                        log.debug("Looking for body params in " + type);
                         return Optional.ofNullable(
                                 ParameterProcessor.applyAnnotations(swagger, null, type, annotations))
                                 .map(Collections::singletonList)
@@ -612,8 +610,9 @@ public abstract class AbstractReader<R> extends ClassSwaggerReader {
 
             output.addAll(this.getParameters(type, annotations, recurseTypesToSkip));
         }
-
-        return output;
+        return output.stream()
+                .filter(parameter -> !StringUtils.isBlank(parameter.getName()))
+                .collect(Collectors.toList());
     }
 
     public String getOperationIdFormat() {

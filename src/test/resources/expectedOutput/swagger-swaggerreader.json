@@ -20,9 +20,6 @@
   "tags" : [ {
     "name" : "pet"
   }, {
-    "name" : "spurioustag",
-    "description" : "Operations about something spurious"
-  }, {
     "name" : "store"
   }, {
     "name" : "user",

@@ -3,7 +3,7 @@
   "paths" : {
     "/apath" : {
       "get" : {
-        "operationId" : "ReferenceCommonParametersApi.getOperation",
+        "operationId" : "getOperation",
         "parameters" : [ {
           "$ref" : "#/parameters/headerParam"
         }, {

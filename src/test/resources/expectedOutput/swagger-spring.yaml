@@ -1072,6 +1072,10 @@ paths:
         required: true
         schema:
           $ref: "#/definitions/User"
+      - in: "query"
+        name: "arbitraryString"
+        required: true
+        type: "string"
       responses:
         default:
           description: "successful operation"

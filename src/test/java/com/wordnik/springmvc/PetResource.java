@@ -225,7 +225,7 @@ public class PetResource {
 
     @ApiOperation(value = "testing")
     @RequestMapping(value = "/testing", method = RequestMethod.GET)
-    public Object testing(@ApiParam(name = "items") @RequestParam(value = "items") String[] items) {
+    public Object testing(@ApiParam(name = "items", required = true) @RequestParam(value = "items") String[] items) {
         return new Object();
     }
 

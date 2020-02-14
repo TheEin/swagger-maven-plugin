@@ -1220,6 +1220,11 @@
           "schema" : {
             "$ref" : "#/definitions/User"
           }
+        }, {
+            "name" : "arbitraryString",
+            "in" : "query",
+            "required" : true,
+            "type" : "string"
         } ],
         "responses" : {
           "default" : {

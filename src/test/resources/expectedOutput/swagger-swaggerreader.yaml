@@ -16,8 +16,6 @@ host: "www.example.com:8080"
 basePath: "/api"
 tags:
 - name: "pet"
-- name: "spurioustag"
-  description: "Operations about something spurious"
 - name: "store"
 - name: "user"
   description: "Operations about user"

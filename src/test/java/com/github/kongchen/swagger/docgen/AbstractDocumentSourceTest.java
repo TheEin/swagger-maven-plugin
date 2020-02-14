@@ -51,14 +51,14 @@ public class AbstractDocumentSourceTest {
     @Test
     public void removeBasePathFromEndpoints() {
         // arrange
-        Swagger swagger = new Swagger();
-        Map<String, Path> pathMap = new HashMap<String, Path>();
+        Swagger swagger = source.swagger;
+        Map<String, Path> pathMap = new HashMap<>();
         pathMap.put("/a/b/c", new Path());
         swagger.setPaths(pathMap);
         swagger.setBasePath("/a/b");
 
         // act
-        source.apiSource.setRemoveBasePathFromEndpoints(true);
+        when(apiSource.getRemoveBasePathFromEndpoints()).thenReturn(true);
         source.removeBasePathFromEndpoints();
 
         // assert
