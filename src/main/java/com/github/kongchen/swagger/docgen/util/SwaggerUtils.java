@@ -12,7 +12,7 @@ public class SwaggerUtils {
     }
 
     public static void setPathOperation(Path path, String method, Operation op) {
-        Operation oldOp = null;
+        Operation oldOp;
         switch (method) {
             case "get":
                 oldOp = path.getGet();

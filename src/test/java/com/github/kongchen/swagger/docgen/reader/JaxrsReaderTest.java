@@ -356,32 +356,39 @@ public class JaxrsReaderTest {
     @Api
     @Path("/apath")
     static class AnApiWithInheritance {
+
         @GET
+        @Path("operation1")
         public SomeResponseWithAbstractInheritance getOperation() {
             return null;
         }
 
         @GET
+        @Path("operation2")
         public SomeResponseBaseClass getOperation2() {
             return null;
         }
 
         @GET
+        @Path("operation3")
         public SomeResponseWithInterfaceInheritance getOperation3() {
             return null;
         }
 
         @GET
+        @Path("operation4")
         public SomeResponseInterface getOperation4() {
             return null;
         }
 
         @GET
+        @Path("operation5")
         public List<SomeResponse> getOperation5() {
             return null;
         }
 
         @GET
+        @Path("operation6")
         public SomeOtherResponse[] getOperation6() {
             return null;
         }

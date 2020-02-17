@@ -18,6 +18,7 @@ import io.swagger.annotations.AuthorizationScope;
 import io.swagger.annotations.ResponseHeader;
 import io.swagger.converter.ModelConverters;
 import io.swagger.jaxrs.ext.SwaggerExtensions;
+import io.swagger.models.ComposedModel;
 import io.swagger.models.Model;
 import io.swagger.models.Operation;
 import io.swagger.models.Path;
@@ -459,11 +460,11 @@ public abstract class AbstractReader<R> extends ClassSwaggerReader {
                 for (String key : models.keySet()) {
                     final Property schema = new RefProperty().asDefault(key);
                     response.setSchema(RESPONSE_CONTAINER_CONVERTER.withResponseContainer(apiResponse.responseContainer(), schema));
-                    swagger.model(key, models.get(key));
+                    addDefinition(key, models.get(key));
                 }
                 models = ModelConverters.getInstance().readAll(responseClass);
                 for (Map.Entry<String, Model> entry : models.entrySet()) {
-                    swagger.model(entry.getKey(), entry.getValue());
+                    addDefinition(entry.getKey(), entry.getValue());
                 }
 
                 if (response.getSchema() == null) {
@@ -637,6 +638,21 @@ public abstract class AbstractReader<R> extends ClassSwaggerReader {
 
     public void setOperationIdFormat(String operationIdFormat) {
         this.operationIdFormat = operationIdFormat;
+    }
+
+    protected void addDefinition(String name, Model model) {
+        boolean addDefinition = Optional.ofNullable(swagger.getDefinitions())
+                .map(definitions -> definitions.get(name))
+                .map(oldModel ->
+                        (!(oldModel instanceof ComposedModel) && (model instanceof ComposedModel)) ||
+                                (Optional.ofNullable(model.getProperties())
+                                        .orElseGet(Collections::emptyMap).size()
+                                        > Optional.ofNullable(oldModel.getProperties())
+                                        .orElseGet(Collections::emptyMap).size()))
+                .orElse(true);
+        if (addDefinition) {
+            swagger.model(name, model);
+        }
     }
 }
 

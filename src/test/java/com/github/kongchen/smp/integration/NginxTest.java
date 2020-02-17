@@ -95,11 +95,10 @@ public class NginxTest extends AbstractMojoTestCase {
                         nginxConfig.setAdditionalRewrites(rewrites);
                     });
             Optional.ofNullable(properties.getProperty("EXCLUDE_LOCATIONS"))
-                    .ifPresent(property -> {
-                        nginxConfig.setExcludeLocations(NL_DELIMITER
-                                .splitAsStream(property)
-                                .collect(Collectors.toList()));
-                    });
+                    .ifPresent(property ->
+                            nginxConfig.setExcludeLocations(NL_DELIMITER
+                                    .splitAsStream(property)
+                                    .collect(Collectors.toList())));
             Map<String, String> nginxProperties = new HashMap<>(nginxConfig.getProperties());
             nginxProperties.putAll(toMap(properties));
             nginxConfig.setProperties(nginxProperties);

@@ -2,37 +2,37 @@ package com.github.kongchen.swagger.docgen.spring;
 
 import com.github.kongchen.swagger.docgen.util.SpringUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.web.bind.annotation.RequestMethod;
 
 import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * @author tedleman
  */
 public class SpringResource {
     private Class<?> controllerClass;
-    private List<Method> methods;
-    private String controllerMapping; //FIXME should be an array
+    private Method method;
+    private RequestMethod requestMethod;
     private String resourceName;
     private String resourceKey;
     private String description;
+    private String controllerMapping; //FIXME should be an array
 
     /**
-     *
-     * @param clazz        Controller class
-     * @param resourceName resource Name
-     * @param resourceKey key containing the controller package, class controller class name, and controller-level @RequestMapping#value
-     * @param description description of the contrroller
+     * @param controllerClass Controller class
+     * @param resourceName    resource Name
+     * @param resourceKey     key containing the controller package, class controller class name, and controller-level @RequestMapping#value
+     * @param description     description of the contrroller
      */
-    public SpringResource(Class<?> clazz, String resourceName, String resourceKey, String description) {
-        this.controllerClass = clazz;
+    public SpringResource(Class<?> controllerClass, Method method, RequestMethod requestMethod, String resourceName, String resourceKey, String description) {
+        this.controllerClass = controllerClass;
+        this.method = method;
+        this.requestMethod = requestMethod;
         this.resourceName = resourceName;
         this.resourceKey = resourceKey;
         this.description = description;
-        methods = new ArrayList<Method>();
 
-        String[] controllerRequestMappingValues = SpringUtils.getControllerResquestMapping(controllerClass);
+        String[] controllerRequestMappingValues = SpringUtils.getControllerResquestMapping(this.controllerClass);
 
         this.controllerMapping = StringUtils.removeEnd(controllerRequestMappingValues[0], "/");
     }
@@ -45,16 +45,20 @@ public class SpringResource {
         this.controllerClass = controllerClass;
     }
 
-    public List<Method> getMethods() {
-        return methods;
+    public Method getMethod() {
+        return method;
     }
 
-    public void setMethods(List<Method> methods) {
-        this.methods = methods;
+    public void setMethod(Method method) {
+        this.method = method;
     }
 
-    public void addMethod(Method m) {
-        this.methods.add(m);
+    public RequestMethod getRequestMethod() {
+        return requestMethod;
+    }
+
+    public void setRequestMethod(RequestMethod requestMethod) {
+        this.requestMethod = requestMethod;
     }
 
     public String getControllerMapping() {

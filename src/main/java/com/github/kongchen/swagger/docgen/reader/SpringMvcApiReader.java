@@ -71,7 +71,7 @@ public class SpringMvcApiReader extends AbstractReader<SpringResource> {
     }
 
     public void read(ResourceContext<SpringResource> ctx) {
-        List<Method> methods = ctx.resource.getMethods();
+        Method resourceMethod = ctx.resource.getMethod();
 
         // Add the description from the controller api
         Class<?> controller = ctx.resource.getControllerClass();
@@ -99,7 +99,7 @@ public class SpringMvcApiReader extends AbstractReader<SpringResource> {
         resourcePath = ctx.resource.getControllerMapping();
 
         //collect api from method with @RequestMapping
-        Map<String, List<Method>> apiMethodMap = collectApisByRequestMapping(methods);
+        Map<String, List<Method>> apiMethodMap = collectApisByRequestMapping(resourceMethod);
 
         for (String path : apiMethodMap.keySet()) {
             for (Method method : apiMethodMap.get(path)) {
@@ -129,30 +129,29 @@ public class SpringMvcApiReader extends AbstractReader<SpringResource> {
         op.path = parseOperationPath(op.path, regexMap);
 
         //http method
-        for (RequestMethod requestMethod : requestMapping.method()) {
-            op.httpMethod = requestMethod.toString().toLowerCase();
-            op.operation = parseMethod(op.method, requestMethod);
+        RequestMethod requestMethod = op.ctx.resource.getRequestMethod();
+        op.httpMethod = requestMethod.toString().toLowerCase();
+        op.operation = parseMethod(op.method, requestMethod);
 
-            if (op.operation == null) {
-                continue;
-            }
-            updateOperationParameters(op, regexMap);
-
-            updateOperationProtocols(op);
-
-            op.produces = requestMapping.produces();
-            op.consumes = requestMapping.consumes();
-
-            op.produces = (op.produces.length == 0) ? controllerProduces : op.produces;
-            op.consumes = (op.consumes.length == 0) ? controllerConsumes : op.consumes;
-
-            updateOperationConsumes(op);
-            updateOperationProduces(op);
-
-            updateTagsForOperation(op);
-            updateOperation(op);
-            updatePath(op);
+        if (op.operation == null) {
+            return;
         }
+        updateOperationParameters(op, regexMap);
+
+        updateOperationProtocols(op);
+
+        op.produces = requestMapping.produces();
+        op.consumes = requestMapping.consumes();
+
+        op.produces = (op.produces.length == 0) ? controllerProduces : op.produces;
+        op.consumes = (op.consumes.length == 0) ? controllerConsumes : op.consumes;
+
+        updateOperationConsumes(op);
+        updateOperationProduces(op);
+
+        updateTagsForOperation(op);
+        updateOperation(op);
+        updatePath(op);
     }
 
     private Operation parseMethod(Method method, RequestMethod requestMethod) {
@@ -252,12 +251,12 @@ public class SpringMvcApiReader extends AbstractReader<SpringResource> {
                             .description(SUCCESSFUL_OPERATION)
                             .schema(responseProperty)
                             .headers(defaultResponseHeaders));
-                    swagger.model(key, models.get(key));
+                    addDefinition(key, models.get(key));
                 }
             }
             Map<String, Model> models = ModelConverters.getInstance().readAll(responseClass);
             for (Map.Entry<String, Model> entry : models.entrySet()) {
-                swagger.model(entry.getKey(), entry.getValue());
+                addDefinition(entry.getKey(), entry.getValue());
             }
         }
 
@@ -345,24 +344,22 @@ public class SpringMvcApiReader extends AbstractReader<SpringResource> {
         }
     }
 
-    private Map<String, List<Method>> collectApisByRequestMapping(List<Method> methods) {
+    private Map<String, List<Method>> collectApisByRequestMapping(Method method) {
         Map<String, List<Method>> apiMethodMap = new HashMap<>();
-        for (Method method : methods) {
-            RequestMapping requestMapping = findMergedAnnotation(method, RequestMapping.class);
-            if (requestMapping != null) {
-                String path;
-                if (requestMapping.value().length != 0) {
-                    path = generateFullPath(requestMapping.value()[0]);
-                } else {
-                    path = resourcePath;
-                }
-                if (apiMethodMap.containsKey(path)) {
-                    apiMethodMap.get(path).add(method);
-                } else {
-                    List<Method> ms = new ArrayList<>();
-                    ms.add(method);
-                    apiMethodMap.put(path, ms);
-                }
+        RequestMapping requestMapping = findMergedAnnotation(method, RequestMapping.class);
+        if (requestMapping != null) {
+            String path;
+            if (requestMapping.value().length != 0) {
+                path = generateFullPath(requestMapping.value()[0]);
+            } else {
+                path = resourcePath;
+            }
+            if (apiMethodMap.containsKey(path)) {
+                apiMethodMap.get(path).add(method);
+            } else {
+                List<Method> ms = new ArrayList<>();
+                ms.add(method);
+                apiMethodMap.put(path, ms);
             }
         }
 
@@ -388,40 +385,38 @@ public class SpringMvcApiReader extends AbstractReader<SpringResource> {
                 if (method.isSynthetic()) {
                     continue;
                 }
-                RequestMapping methodRequestMapping = findMergedAnnotation(method, RequestMapping.class);
+                RequestMapping requestMapping = findMergedAnnotation(method, RequestMapping.class);
 
                 // Look for method-level @RequestMapping annotation
-                if (methodRequestMapping != null) {
-                    RequestMethod[] requestMappingRequestMethods = methodRequestMapping.method();
+                if (requestMapping != null) {
+                    RequestMethod[] requestMethods = requestMapping.method();
 
                     // For each method-level @RequestMapping annotation, iterate over HTTP Verb
-                    for (RequestMethod requestMappingRequestMethod : requestMappingRequestMethods) {
-                        String[] methodRequestMappingValues = methodRequestMapping.value();
+                    for (RequestMethod requestMethod : requestMethods) {
+                        String[] paths = requestMapping.value();
 
                         // Check for cases where method-level @RequestMapping#value is not set, and use the controllers @RequestMapping
-                        if (methodRequestMappingValues.length == 0) {
+                        if (paths.length == 0) {
                             // The map key is a concat of the following:
                             //   1. The controller package
                             //   2. The controller class name
                             //   3. The controller-level @RequestMapping#value
-                            String resourceKey = controllerClazz.getCanonicalName() + controllerRequestMappingValue + requestMappingRequestMethod;
+                            String resourceKey = controllerClazz.getCanonicalName() + controllerRequestMappingValue + requestMethod;
                             if (!resourceMap.containsKey(resourceKey)) {
                                 resourceMap.put(
                                         resourceKey,
-                                        new SpringResource(controllerClazz, controllerRequestMappingValue, resourceKey, description));
+                                        new SpringResource(controllerClazz, method, requestMethod, controllerRequestMappingValue, resourceKey, description));
                             }
-                            resourceMap.get(resourceKey).addMethod(method);
                         } else {
                             // Here we know that method-level @RequestMapping#value is populated, so
                             // iterate over all the @RequestMapping#value attributes, and add them to the resource map.
-                            for (String methodRequestMappingValue : methodRequestMappingValues) {
+                            for (String methodRequestMappingValue : paths) {
                                 String resourceKey = controllerClazz.getCanonicalName() + controllerRequestMappingValue
-                                        + methodRequestMappingValue + requestMappingRequestMethod;
+                                        + methodRequestMappingValue + requestMethod;
                                 if (!(controllerRequestMappingValue + methodRequestMappingValue).isEmpty()) {
                                     if (!resourceMap.containsKey(resourceKey)) {
-                                        resourceMap.put(resourceKey, new SpringResource(controllerClazz, methodRequestMappingValue, resourceKey, description));
+                                        resourceMap.put(resourceKey, new SpringResource(controllerClazz, method, requestMethod, methodRequestMappingValue, resourceKey, description));
                                     }
-                                    resourceMap.get(resourceKey).addMethod(method);
                                 }
                             }
                         }

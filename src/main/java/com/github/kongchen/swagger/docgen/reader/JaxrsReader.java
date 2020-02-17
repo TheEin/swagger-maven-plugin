@@ -209,7 +209,7 @@ public class JaxrsReader extends AbstractReader<Class<?>> {
         Method[] methods = cls.getMethods();
         List<Method> filteredMethods = new ArrayList<>();
         for (Method method : methods) {
-            if (!method.isBridge()) {
+            if (!method.isBridge() && !method.isDefault()) {
                 filteredMethods.add(method);
             }
         }
@@ -440,12 +440,12 @@ public class JaxrsReader extends AbstractReader<Class<?>> {
                             .description("successful operation")
                             .schema(responseProperty)
                             .headers(defaultResponseHeaders));
-                    swagger.model(key, models.get(key));
+                    addDefinition(key, models.get(key));
                 }
             }
             Map<String, Model> models = readAllModels(responseClassType);
             for (Map.Entry<String, Model> entry : models.entrySet()) {
-                swagger.model(entry.getKey(), entry.getValue());
+                addDefinition(entry.getKey(), entry.getValue());
             }
         }
 

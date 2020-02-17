@@ -31,7 +31,7 @@ public class SpringMvcEnhancedOperationIdTest extends AbstractMojoTestCase {
     @Override
 	@BeforeMethod
     protected void setUp() throws Exception {
-    	extensions = new ArrayList<SwaggerExtension>(SwaggerExtensions.getExtensions());
+    	extensions = new ArrayList<>(SwaggerExtensions.getExtensions());
     	super.setUp();
 
         try {

@@ -412,7 +412,7 @@
       "get" : {
         "summary" : "Get a list of items",
         "description" : "This is a contrived example",
-        "operationId" : "MyResourceImpl_getListOfItems_GET",
+        "operationId" : "MyResource_getListOfItems_GET",
         "produces" : [ "application/json", "application/xml" ],
         "responses" : {
           "200" : {
