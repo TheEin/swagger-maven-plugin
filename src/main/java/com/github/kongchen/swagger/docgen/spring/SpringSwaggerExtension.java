@@ -331,7 +331,7 @@ public class SpringSwaggerExtension extends AbstractSwaggerExtension {
                 }
 
                 Class<?> parameterClass = propertyDescriptor.getPropertyType();
-                List<Parameter> propertySetterExtractedParameters = this.extractParametersFromAnnotation(
+                List<Parameter> propertySetterExtractedParameters = extractParametersFromAnnotation(
                         parameterClass, toMap(Arrays.asList(parameterAnnotations[0])));
 
                 for (Parameter parameter : propertySetterExtractedParameters) {

@@ -50,8 +50,6 @@ public class NginxJaxrsReader extends JaxrsReader {
     public NginxJaxrsReader(Swagger swagger, NginxConfig nginxConfig, Log log) {
         super(swagger, log);
 
-        setOperationIdFormat(OPERATION_ID_FORMAT);
-
         if (nginxConfig == null || !nginxConfig.isEnabled()) {
             config = null;
             additionalRewrites = null;
@@ -101,6 +99,10 @@ public class NginxJaxrsReader extends JaxrsReader {
 
     @Override
     public void read(Set<Class<?>> classes) {
+        if (getOperationIdFormat() == null) {
+            setOperationIdFormat(OPERATION_ID_FORMAT);
+        }
+
         super.read(classes);
         if (tags != null) {
             tags.stream().map(NginxTag::getName)

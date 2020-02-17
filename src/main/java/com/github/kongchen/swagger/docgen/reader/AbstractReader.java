@@ -3,6 +3,7 @@ package com.github.kongchen.swagger.docgen.reader;
 import com.github.kongchen.swagger.docgen.ReaderAware;
 import com.github.kongchen.swagger.docgen.ResponseMessageOverride;
 import com.github.kongchen.swagger.docgen.util.SwaggerExtensionChain;
+import com.github.kongchen.swagger.docgen.util.SwaggerUtils;
 import com.github.kongchen.swagger.docgen.util.TypeExtracter;
 import com.github.kongchen.swagger.docgen.util.TypeWithAnnotations;
 import io.swagger.annotations.Api;
@@ -59,8 +60,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * @author chekong on 15/4/28.
@@ -268,12 +269,16 @@ public abstract class AbstractReader<R> extends ClassSwaggerReader {
         if (op.httpMethod == null) {
             return;
         }
-        Path path = swagger.getPath(op.path);
-        if (path == null) {
-            path = new Path();
-            swagger.path(op.path, path);
+        try {
+            Path path = swagger.getPath(op.path);
+            if (path == null) {
+                path = new Path();
+                swagger.path(op.path, path);
+            }
+            SwaggerUtils.setPathOperation(path, op.httpMethod, op.operation);
+        } catch (RuntimeException e) {
+            throw new RuntimeException("Failed to update path: " + op.path, e);
         }
-        path.set(op.httpMethod, op.operation);
     }
 
     protected void updateTagsForOperation(OperationContext<R> op) {
@@ -394,7 +399,19 @@ public abstract class AbstractReader<R> extends ClassSwaggerReader {
         if (isApiParamHidden(annotations)) {
             return Collections.emptyList();
         }
+        List<Parameter> parameters = getNonBodyParameters(type, annotations, typesToSkip)
+                .collect(Collectors.toList());
+        if (parameters.isEmpty()) {
+            Parameter body = getBodyParameter(type, annotations, typesToSkip);
+            if (body == null) {
+                return Collections.emptyList();
+            }
+            return Collections.singletonList(body);
+        }
+        return parameters;
+    }
 
+    protected Stream<Parameter> getNonBodyParameters(Type type, List<Annotation> annotations, Set<Type> typesToSkip) {
         log.debug("Looking for path/query/header/form/cookie params in " + type);
 
         return SwaggerExtensionChain
@@ -402,18 +419,17 @@ public abstract class AbstractReader<R> extends ClassSwaggerReader {
                 .map(parameters -> parameters.stream()
                         .map(parameter -> ParameterProcessor.applyAnnotations(swagger, parameter, type, annotations))
                         .filter(Objects::nonNull)
-                        .collect(Collectors.toList()))
-                .filter(((Predicate<List<Parameter>>) List::isEmpty).negate())
-                .orElseGet(() -> {
-                    if (typesToSkip.isEmpty()) {
-                        log.debug("Looking for body params in " + type);
-                        return Optional.ofNullable(
-                                ParameterProcessor.applyAnnotations(swagger, null, type, annotations))
-                                .map(Collections::singletonList)
-                                .orElseGet(Collections::emptyList);
-                    }
-                    return Collections.emptyList();
-                });
+                )
+                .orElseGet(Stream::empty);
+    }
+
+    protected Parameter getBodyParameter(Type type, List<Annotation> annotations, Set<Type> typesToSkip) {
+        log.debug("Looking for body params in " + type);
+
+        if (typesToSkip.isEmpty()) {
+            return ParameterProcessor.applyAnnotations(swagger, null, type, annotations);
+        }
+        return null;
     }
 
     protected void updateApiResponse(Operation operation, ApiResponses responseAnnotation) {

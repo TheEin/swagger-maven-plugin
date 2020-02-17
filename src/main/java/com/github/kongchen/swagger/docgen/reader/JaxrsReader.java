@@ -58,6 +58,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Stream;
 
 public class JaxrsReader extends AbstractReader<Class<?>> {
 
@@ -346,7 +347,6 @@ public class JaxrsReader extends AbstractReader<Class<?>> {
         }
     }
 
-
     private void parseMethod(OperationContext<Class<?>> op) {
         int responseCode = 200;
         ApiOperation apiOperation = AnnotationUtils.findAnnotation(op.method, ApiOperation.class);
@@ -501,6 +501,12 @@ public class JaxrsReader extends AbstractReader<Class<?>> {
         processOperationDecorator(op.operation, op.method);
 
         addImplicitResponses(op.operation);
+    }
+
+    @Override
+    protected Stream<Parameter> getNonBodyParameters(Type type, List<Annotation> annotations, Set<Type> typesToSkip) {
+        return super.getNonBodyParameters(type, annotations, typesToSkip)
+                .filter(parameter -> !StringUtils.isBlank(parameter.getName()));
     }
 
     public static Annotation[][] findParamAnnotations(Method method) {
