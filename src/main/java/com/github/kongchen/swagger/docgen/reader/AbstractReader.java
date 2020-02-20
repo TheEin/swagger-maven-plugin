@@ -641,18 +641,42 @@ public abstract class AbstractReader<R> extends ClassSwaggerReader {
     }
 
     protected void addDefinition(String name, Model model) {
-        boolean addDefinition = Optional.ofNullable(swagger.getDefinitions())
-                .map(definitions -> definitions.get(name))
-                .map(oldModel ->
-                        (!(oldModel instanceof ComposedModel) && (model instanceof ComposedModel)) ||
-                                (Optional.ofNullable(model.getProperties())
-                                        .orElseGet(Collections::emptyMap).size()
-                                        > Optional.ofNullable(oldModel.getProperties())
-                                        .orElseGet(Collections::emptyMap).size()))
-                .orElse(true);
+        Optional<Model> oldModelOpt = Optional.ofNullable(swagger.getDefinitions())
+                .map(definitions -> definitions.get(name));
+        boolean addDefinition = oldModelOpt.map(oldModel -> {
+            boolean oldComposite = oldModel instanceof ComposedModel;
+            boolean modelComposite = model instanceof ComposedModel;
+            // F + T -> T
+            // T + F -> F
+            // T + T -> ?
+            // F + F -> ?
+            return (!oldComposite && modelComposite) ||
+                    (!oldComposite || modelComposite) &&
+                            Optional.ofNullable(model.getProperties())
+                                    .orElseGet(Collections::emptyMap).size()
+                                    > Optional.ofNullable(oldModel.getProperties())
+                                    .orElseGet(Collections::emptyMap).size();
+        }).orElse(true);
         if (addDefinition) {
+            if (oldModelOpt.isPresent()) {
+                if (log.isWarnEnabled()) {
+                    log.warn("Replacing swagger definition: " + getDefinitionInfo(name, model));
+                }
+            } else {
+                if (log.isInfoEnabled()) {
+                    log.info("Adding swagger definition: " + getDefinitionInfo(name, model));
+                }
+            }
             swagger.model(name, model);
+        } else {
+            if (log.isDebugEnabled()) {
+                log.debug("Skipping swagger definition: " + getDefinitionInfo(name, model));
+            }
         }
+    }
+
+    private static String getDefinitionInfo(String name, Model model) {
+        return name + " = " + model.getClass().getSimpleName();
     }
 }
 

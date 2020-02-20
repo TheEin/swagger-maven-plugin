@@ -3,6 +3,7 @@ package com.github.kongchen.swagger.docgen.reader;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -27,6 +28,7 @@ import io.swagger.models.properties.Property;
 import io.swagger.util.Json;
 import net.javacrumbs.jsonunit.JsonAssert;
 import org.apache.maven.plugin.logging.Log;
+import org.apache.maven.plugin.logging.SystemStreamLog;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
@@ -53,8 +55,8 @@ import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertTrue;
 
 public class JaxrsReaderTest {
-    @Mock
-    private Log log;
+
+    private Log log = new SystemStreamLog();
 
     private JaxrsReader reader;
 
@@ -186,6 +188,15 @@ public class JaxrsReaderTest {
     public void handleResponseWithInheritance() {
         reader.read(AnApiWithInheritance.class);
         Map<String, Model> models = reader.getSwagger().getDefinitions();
+        ObjectMapper objectMapper = new ObjectMapper();
+
+        try {
+            log.info("Swagger definitions:\n" + objectMapper
+                    .writerWithDefaultPrettyPrinter()
+                    .writeValueAsString(models));
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+        }
 
         Map<String, Property> properties = getProperties(models, "SomeResponseWithAbstractInheritance");
         assertNotNull(properties);

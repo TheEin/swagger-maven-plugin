@@ -32,7 +32,11 @@ public class NginxTest extends AbstractMojoTestCase {
 
     private final File swaggerOutputDir = new File(getBasedir(), "target/test/nginx");
 
-    private ApiDocumentMojo mojo;
+    private Properties properties;
+
+    private Path projectRoot;
+
+    private File testPom;
 
     private ClassLoader testClassLoader;
 
@@ -45,7 +49,7 @@ public class NginxTest extends AbstractMojoTestCase {
             FileUtils.deleteDirectory(swaggerOutputDir);
         } catch (Exception ignore) {
         }
-        Properties properties = new Properties();
+        properties = new Properties();
         try (InputStream propertiesStream = getClass().getResourceAsStream(
                 getClass().getSimpleName() + ".properties")) {
             properties.load(propertiesStream);
@@ -53,22 +57,43 @@ public class NginxTest extends AbstractMojoTestCase {
 
         String projectPath = properties.getProperty("PROJECT_PATH");
         assertNotNull("Project path was not specified", projectPath);
-        Path root = Paths.get(projectPath);
+        projectRoot = Paths.get(projectPath);
+        testPom = projectRoot.resolve(properties.getProperty("POM_PATH")).toFile();
         String classPath = properties.getProperty("CLASS_PATH");
         testClassLoader = getClassLoader();
         Optional.ofNullable(classPath).ifPresent(cp -> {
             URL[] urls = NL_DELIMITER.splitAsStream(cp).map(path -> {
                 try {
-                    return root.resolve(path).toUri().toURL();
+                    return projectRoot.resolve(path).toUri().toURL();
                 } catch (MalformedURLException e) {
                     throw new RuntimeException(e);
                 }
             }).toArray(URL[]::new);
             Thread.currentThread().setContextClassLoader(new URLClassLoader(urls, testClassLoader));
         });
+    }
 
-        File testPom = root.resolve(properties.getProperty("POM_PATH")).toFile();
-        mojo = (ApiDocumentMojo) lookupMojo("generate", testPom);
+    @SuppressWarnings("unchecked")
+    private Map<String, String> toMap(Properties properties) {
+        return (Map) properties;
+    }
+
+    @Override
+    @AfterMethod
+    protected void tearDown() throws Exception {
+        Thread.currentThread().setContextClassLoader(testClassLoader);
+        super.tearDown();
+    }
+
+    @Test
+    public void testGeneratedDoc() throws Exception {
+        ApiDocumentMojo mojo;
+        try {
+            mojo = (ApiDocumentMojo) lookupMojo("generate", testPom);
+        } catch (Exception e) {
+            System.err.println("test generate failed: " + e);
+            return;
+        }
         Map<Object, Object> ctx = new HashMap<>();
         mojo.setPluginContext(ctx);
         List<ApiSource> apiSources = new ArrayList<>();
@@ -82,7 +107,7 @@ public class NginxTest extends AbstractMojoTestCase {
             if (nginxConfig == null) {
                 continue;
             }
-            nginxConfig.setLocation(root.resolve(properties.getProperty("CFG_PATH")).toAbsolutePath().toString());
+            nginxConfig.setLocation(projectRoot.resolve(properties.getProperty("CFG_PATH")).toAbsolutePath().toString());
             Optional.ofNullable(properties.getProperty("ADD_REWRITES"))
                     .ifPresent(property -> {
                         String[] args = NL_DELIMITER.split(property);
@@ -105,22 +130,6 @@ public class NginxTest extends AbstractMojoTestCase {
             apiSource.setNginxConfig(nginxConfig);
         }
         mojo.setApiSources(apiSources);
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, String> toMap(Properties properties) {
-        return (Map) properties;
-    }
-
-    @Override
-    @AfterMethod
-    protected void tearDown() throws Exception {
-        Thread.currentThread().setContextClassLoader(testClassLoader);
-        super.tearDown();
-    }
-
-    @Test
-    public void testGeneratedDoc() throws Exception {
         mojo.execute();
     }
 }
