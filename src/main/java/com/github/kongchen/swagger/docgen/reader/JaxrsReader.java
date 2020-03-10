@@ -3,6 +3,7 @@ package com.github.kongchen.swagger.docgen.reader;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.As;
 import com.github.kongchen.swagger.docgen.util.SwaggerExtensionChain;
+import com.nexign.swagger.annotations.ApiBasePath;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiResponses;
@@ -93,7 +94,9 @@ public class JaxrsReader extends AbstractReader<Class<?>> {
                 .orElseGet(() -> Optional.ofNullable(AnnotationUtils.findAnnotation(cls, RequestMapping.class))
                         .map(RequestMapping::path)
                         .flatMap(paths -> Arrays.stream(paths).findFirst())
-                        .orElse(null));
+                        .orElseGet(() -> Optional.ofNullable(AnnotationUtils.findAnnotation(cls, ApiBasePath.class))
+                                .map(ApiBasePath::value)
+                                .orElse(null)));
     }
 
     protected String resolveMethodPath(Method method) {

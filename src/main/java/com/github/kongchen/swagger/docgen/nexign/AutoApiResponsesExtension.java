@@ -12,6 +12,8 @@ import io.swagger.models.parameters.Parameter;
 import org.springframework.http.HttpStatus;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.util.Iterator;
 import java.util.Optional;
 
@@ -53,15 +55,31 @@ public class AutoApiResponsesExtension extends AbstractSwaggerExtension {
                 .map(ApiOperation::code)
                 .orElse(HttpStatus.OK.value());
 
-        Class<?> returnType = method.getReturnType();
+        Type returnType = method.getGenericReturnType();
+
         Model okModel = null;
         if (!returnType.equals(Void.TYPE)) {
-            okModel = new RefModel(returnType.getSimpleName());
+            String refType;
+            if (returnType instanceof ParameterizedType) {
+                ParameterizedType parameterizedType = (ParameterizedType) returnType;
+                StringBuilder s = new StringBuilder(getSimpleName(parameterizedType.getRawType()));
+                for (Type p : parameterizedType.getActualTypeArguments()) {
+                    s.append(getSimpleName(p));
+                }
+                refType = s.toString();
+            } else {
+                refType = getSimpleName(returnType);
+            }
+            okModel = new RefModel(refType);
         }
 
         operation.response(httpCode, new Response()
                 .description("Запрос выполнен успешно")
                 .responseSchema(okModel));
+    }
+
+    private String getSimpleName(Type type) {
+        return ((Class<?>) type).getSimpleName();
     }
 
     private void addBadRequestResponse(Operation operation) {
