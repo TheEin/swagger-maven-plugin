@@ -46,7 +46,7 @@ public class SwaggerUtils {
                 throw new IllegalArgumentException("Unknown HTTP method: " + method);
         }
         if (oldOp != null) {
-            throw new IllegalStateException("Path method " + method.toUpperCase() + " was already set");
+            throw new IllegalStateException("Path method " + method.toUpperCase() + " was already assigned to operation " + oldOp.getOperationId());
         }
     }
 }
