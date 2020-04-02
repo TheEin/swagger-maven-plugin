@@ -1,7 +1,5 @@
 package com.github.kongchen.swagger.docgen.reader;
 
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import com.fasterxml.jackson.annotation.JsonTypeInfo.As;
 import com.github.kongchen.swagger.docgen.util.SwaggerExtensionChain;
 import com.nexign.swagger.annotations.ApiBasePath;
 import io.swagger.annotations.Api;
@@ -24,7 +22,6 @@ import io.swagger.models.parameters.Parameter;
 import io.swagger.models.parameters.RefParameter;
 import io.swagger.models.properties.Property;
 import io.swagger.models.properties.RefProperty;
-import io.swagger.models.properties.StringProperty;
 import io.swagger.models.refs.RefType;
 import io.swagger.util.BaseReaderUtils;
 import io.swagger.util.ReflectionUtils;
@@ -50,7 +47,6 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -601,58 +597,6 @@ public class JaxrsReader extends AbstractReader<Class<?>> {
     }
 
     private Map<String, Model> readAllModels(Type responseClassType) {
-        Map<String, Model> modelMap = ModelConverters.getInstance().readAll(responseClassType);
-        if (modelMap != null) {
-            handleJsonTypeInfo(responseClassType, modelMap);
-        }
-
-        return modelMap;
-    }
-
-    private void handleJsonTypeInfo(Type responseClassType, Map<String, Model> modelMap) {
-        if (responseClassType instanceof ParameterizedType) {
-            Type[] actualTypes = ((ParameterizedType) responseClassType).getActualTypeArguments();
-            for (Type type : actualTypes) {
-                handleJsonTypeInfo(type, modelMap);
-            }
-        } else if (responseClassType instanceof Class<?>) {
-            Class<?> responseClass = ((Class<?>) responseClassType);
-            if (responseClass.isArray()) {
-                responseClass = responseClass.getComponentType();
-            }
-
-            JsonTypeInfo typeInfo = responseClass.getAnnotation(JsonTypeInfo.class);
-            if (typeInfo == null) {
-                return;
-            }
-
-            String propertyName = typeInfo.property();
-            if (!StringUtils.isEmpty(propertyName)) {
-                Model model = modelMap.get(responseClass.getSimpleName());
-                if (model == null) {
-                    throw new IllegalStateException("Undefined model for response class " + responseClass.getSimpleName());
-                }
-                if (!typeInfo.include().equals(As.EXISTING_PROPERTY)) {
-                    addProperty(model, propertyName, new StringProperty());
-                }
-                if (model instanceof ModelImpl) {
-                    ModelImpl m = (ModelImpl) model;
-                    m.setDiscriminator(propertyName);
-                    m.addRequired(propertyName);
-                }
-            }
-        }
-    }
-
-    private void addProperty(Model model, String name, Property property) {
-        Map<String, Property> properties = model.getProperties();
-        if (properties == null) {
-            if (model instanceof ModelImpl) {
-                ModelImpl m = (ModelImpl) model;
-                m.addProperty(name, property);
-            }
-        } else if (!properties.containsKey(name)) {
-            properties.put(name, property);
-        }
+        return ModelConverters.getInstance().readAll(responseClassType);
     }
 }
