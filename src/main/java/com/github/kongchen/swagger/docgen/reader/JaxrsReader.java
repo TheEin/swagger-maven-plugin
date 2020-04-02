@@ -622,14 +622,37 @@ public class JaxrsReader extends AbstractReader<Class<?>> {
             }
 
             JsonTypeInfo typeInfo = responseClass.getAnnotation(JsonTypeInfo.class);
-            if (typeInfo == null || StringUtils.isEmpty(typeInfo.property()) || typeInfo.include().equals(As.EXISTING_PROPERTY)) {
+            if (typeInfo == null) {
                 return;
             }
 
-            Map<String, Property> properties = modelMap.get(responseClass.getSimpleName()).getProperties();
-            if (properties != null && !properties.containsKey(typeInfo.property())) {
-                properties.put(typeInfo.property(), new StringProperty());
+            String propertyName = typeInfo.property();
+            if (!StringUtils.isEmpty(propertyName)) {
+                Model model = modelMap.get(responseClass.getSimpleName());
+                if (model == null) {
+                    throw new IllegalStateException("Undefined model for response class " + responseClass.getSimpleName());
+                }
+                if (!typeInfo.include().equals(As.EXISTING_PROPERTY)) {
+                    addProperty(model, propertyName, new StringProperty());
+                }
+                if (model instanceof ModelImpl) {
+                    ModelImpl m = (ModelImpl) model;
+                    m.setDiscriminator(propertyName);
+                    m.addRequired(propertyName);
+                }
             }
+        }
+    }
+
+    private void addProperty(Model model, String name, Property property) {
+        Map<String, Property> properties = model.getProperties();
+        if (properties == null) {
+            if (model instanceof ModelImpl) {
+                ModelImpl m = (ModelImpl) model;
+                m.addProperty(name, property);
+            }
+        } else if (!properties.containsKey(name)) {
+            properties.put(name, property);
         }
     }
 }
