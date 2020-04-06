@@ -181,7 +181,7 @@
         "operationId" : "pathVariableExpectVariableName",
         "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "pathVariableName",
+          "name" : "parameterName",
           "in" : "path",
           "required" : true,
           "type" : "string"
@@ -204,7 +204,7 @@
         "operationId" : "pathVariableExpectVariableValue",
         "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "pathVariableValue",
+          "name" : "parameterName",
           "in" : "path",
           "required" : true,
           "type" : "string"
@@ -1190,7 +1190,7 @@
       "get" : {
         "operationId" : "getPetByName",
         "parameters" : [ {
-          "name" : "name",
+          "name" : "petId",
           "in" : "path",
           "required" : true,
           "type" : "string"

@@ -14,7 +14,7 @@ public class SwaggerlessResource {
 
     @GET
     @Path("/swaggerless/{petId : [0-9]}")
-    public Pet getPetByName(@PathParam(value = "name") String name) {
+    public Pet getPetByName(@PathParam(value = "petId") String name) {
         // Just create and return a new pet
         Pet pet = new Pet();
         pet.setName(new PetName(name));

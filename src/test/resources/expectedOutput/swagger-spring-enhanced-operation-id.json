@@ -147,7 +147,7 @@
         "operationId" : "EchoResource_pathVariableExpectVariableName_GET",
         "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "pathVariableName",
+          "name" : "parameterName",
           "in" : "path",
           "required" : true,
           "type" : "string"
@@ -170,7 +170,7 @@
         "operationId" : "EchoResource_pathVariableExpectVariableValue_GET",
         "produces" : [ "application/json" ],
         "parameters" : [ {
-          "name" : "pathVariableValue",
+          "name" : "parameterName",
           "in" : "path",
           "required" : true,
           "type" : "string"
@@ -1175,7 +1175,7 @@
       "get" : {
         "operationId" : "SwaggerlessResource_getPetByName_GET",
         "parameters" : [ {
-          "name" : "name",
+          "name" : "petId",
           "in" : "path",
           "required" : true,
           "type" : "string"

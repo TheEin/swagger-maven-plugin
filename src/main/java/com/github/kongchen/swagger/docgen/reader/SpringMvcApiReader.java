@@ -133,7 +133,7 @@ public class SpringMvcApiReader extends AbstractReader<SpringResource> {
         op.httpMethod = requestMethod.toString().toLowerCase();
         op.operation = parseMethod(op.method, requestMethod);
 
-        if (op.operation == null) {
+        if (op.operation == null || op.httpMethod == null) {
             return;
         }
         updateOperationParameters(op, regexMap);
@@ -152,6 +152,7 @@ public class SpringMvcApiReader extends AbstractReader<SpringResource> {
         updateTagsForOperation(op);
         updateOperation(op);
         updatePath(op);
+        validateOperation(op);
     }
 
     private Operation parseMethod(Method method, RequestMethod requestMethod) {

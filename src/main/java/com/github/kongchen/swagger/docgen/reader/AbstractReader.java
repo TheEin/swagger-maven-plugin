@@ -33,6 +33,7 @@ import io.swagger.models.parameters.HeaderParameter;
 import io.swagger.models.parameters.Parameter;
 import io.swagger.models.parameters.PathParameter;
 import io.swagger.models.parameters.QueryParameter;
+import io.swagger.models.parameters.RefParameter;
 import io.swagger.models.properties.ArrayProperty;
 import io.swagger.models.properties.MapProperty;
 import io.swagger.models.properties.Property;
@@ -43,6 +44,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.text.StrBuilder;
 import org.apache.maven.plugin.logging.Log;
 import org.springframework.core.annotation.AnnotationUtils;
+import org.springframework.web.util.UriTemplate;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
@@ -267,9 +269,6 @@ public abstract class AbstractReader<R> extends ClassSwaggerReader {
     }
 
     protected void updatePath(OperationContext<R> op) {
-        if (op.httpMethod == null) {
-            return;
-        }
         try {
             Path path = swagger.getPath(op.path);
             if (path == null) {
@@ -279,6 +278,51 @@ public abstract class AbstractReader<R> extends ClassSwaggerReader {
             SwaggerUtils.setPathOperation(path, op.httpMethod, op.operation);
         } catch (RuntimeException e) {
             throw new RuntimeException("Failed to update path: " + op.path, e);
+        }
+    }
+
+    protected Parameter dereference(Parameter parameter) {
+        if (parameter instanceof RefParameter) {
+          RefParameter refParameter = (RefParameter) parameter;
+          return swagger.getParameter(refParameter.getSimpleRef());
+        }
+        return parameter;
+    }
+
+    protected Parameter resolveDuplicateParameters(Parameter p1, Parameter p2) {
+        throw new IllegalArgumentException("Duplicate parameters: name = " + p1.getName() +
+                ", parameter1 = " + p1.getDescription() +
+                ", parameter2 = " + p2.getDescription());
+    }
+
+    protected void validateOperation(OperationContext<R> op) {
+        UriTemplate uriTemplate = new UriTemplate(op.path);
+        Map<String, Parameter> parameters = op.operation.getParameters().stream()
+                .map(this::dereference)
+                .collect(Collectors.toMap(
+                        Parameter::getName,
+                        parameter -> parameter,
+                        this::resolveDuplicateParameters));
+
+        // look for path variables and its parameters
+        for (String variableName : uriTemplate.getVariableNames()) {
+            Parameter p = parameters.remove(variableName);
+            if (p == null) {
+                throw new IllegalArgumentException("Path variable without a parameter: " + variableName);
+            }
+            if (!Objects.equals(p.getIn(), "path")) {
+                throw new IllegalArgumentException("Path parameter is not in path: " + variableName);
+            }
+            if (!p.getRequired()) {
+                throw new IllegalArgumentException("Path parameter is not required: " + variableName);
+            }
+        }
+
+        // look for unmapped path parameters without path variables
+        for (Parameter p : parameters.values()) {
+            if (Objects.equals(p.getIn(), "path")) {
+                throw new IllegalStateException("Path parameter without a path variable: " + p.getName());
+            }
         }
     }
 

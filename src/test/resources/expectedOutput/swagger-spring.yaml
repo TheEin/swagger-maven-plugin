@@ -123,7 +123,7 @@ paths:
       produces:
       - "application/json"
       parameters:
-      - name: "pathVariableName"
+      - name: "parameterName"
         in: "path"
         required: true
         type: "string"
@@ -142,7 +142,7 @@ paths:
       produces:
       - "application/json"
       parameters:
-      - name: "pathVariableValue"
+      - name: "parameterName"
         in: "path"
         required: true
         type: "string"
@@ -1046,7 +1046,7 @@ paths:
     get:
       operationId: "getPetByName"
       parameters:
-      - name: "name"
+      - name: "petId"
         in: "path"
         required: true
         type: "string"

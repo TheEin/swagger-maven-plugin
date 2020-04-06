@@ -1360,10 +1360,11 @@
       "get" : {
         "operationId" : "getPetByName",
         "parameters" : [ {
-          "name" : "name",
+          "name" : "petId",
           "in" : "path",
           "required" : true,
-          "type" : "string"
+          "type" : "string",
+          "pattern" : "[0-9]"
         } ],
         "responses" : {
           "200" : {

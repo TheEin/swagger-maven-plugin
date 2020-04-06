@@ -17,13 +17,13 @@ public class EchoResource {
 
     @RequestMapping(value = "/pathVariableExpectVariableName/{parameterName}", method = RequestMethod.GET, produces = "application/json")
     @ApiOperation(value = "")
-    public String pathVariableExpectVariableName(@PathVariable(name = "pathVariableName") String parameterName) {
+    public String pathVariableExpectVariableName(@PathVariable(name = "parameterName") String parameterName) {
         return parameterName;
     }
 
     @RequestMapping(value = "/pathVariableExpectVariableValue/{parameterName}", method = RequestMethod.GET, produces = "application/json")
     @ApiOperation(value = "")
-    public String pathVariableExpectVariableValue(@PathVariable(value = "pathVariableValue") String parameterName) {
+    public String pathVariableExpectVariableValue(@PathVariable(value = "parameterName") String parameterName) {
         return parameterName;
     }
 

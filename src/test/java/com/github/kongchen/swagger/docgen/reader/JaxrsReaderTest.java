@@ -29,7 +29,6 @@ import io.swagger.util.Json;
 import net.javacrumbs.jsonunit.JsonAssert;
 import org.apache.maven.plugin.logging.Log;
 import org.apache.maven.plugin.logging.SystemStreamLog;
-import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -207,7 +206,7 @@ public class JaxrsReaderTest {
         properties = models.get("SomeResponseBaseClass").getProperties();
         assertNotNull(properties);
         assertTrue(properties.containsKey("inheritedProperty"));
-        assertTrue(properties.containsKey("type"));
+        assertFalse(properties.containsKey("type"));
 
         properties = getProperties(models, "SomeResponseWithInterfaceInheritance");
         assertNotNull(properties);
@@ -218,17 +217,17 @@ public class JaxrsReaderTest {
         properties = getProperties(models, "SomeResponseInterface");
         assertNotNull(properties);
         assertTrue(properties.containsKey("inheritedProperty"));
-        assertTrue(properties.containsKey("type"));
+        assertFalse(properties.containsKey("type"));
 
         properties = getProperties(models, "SomeResponse");
         assertNotNull(properties);
         assertTrue(properties.containsKey("classProperty"));
-        assertTrue(properties.containsKey("type"));
+        assertFalse(properties.containsKey("type"));
 
         properties = getProperties(models, "SomeOtherResponse");
         assertNotNull(properties);
         assertTrue(properties.containsKey("classProperty"));
-        assertTrue(properties.containsKey("type"));
+        assertFalse(properties.containsKey("type"));
     }
 
     private Map<String, Property> getProperties(Map<String, Model> models, String className) {

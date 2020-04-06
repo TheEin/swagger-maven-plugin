@@ -197,9 +197,13 @@ public class JaxrsReader extends AbstractReader<Class<?>> {
 
             // can't continue without a valid http method
             op.httpMethod = (op.httpMethod == null) ? op.ctx.parentMethod : op.httpMethod;
+            if (op.httpMethod == null) {
+                return;
+            }
             updateTagsForOperation(op);
             updateOperation(op);
             updatePath(op);
+            validateOperation(op);
         }
         updateTagDescriptions();
     }
@@ -208,7 +212,8 @@ public class JaxrsReader extends AbstractReader<Class<?>> {
         Method[] methods = cls.getMethods();
         List<Method> filteredMethods = new ArrayList<>();
         for (Method method : methods) {
-            if (!method.isBridge() && !method.isDefault()) {
+            if (!(method.isBridge() || method.isDefault() ||
+                    method.getDeclaringClass().equals(Object.class))) {
                 filteredMethods.add(method);
             }
         }

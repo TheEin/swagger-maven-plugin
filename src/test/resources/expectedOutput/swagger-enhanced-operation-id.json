@@ -1067,10 +1067,11 @@
       "get" : {
         "operationId" : "SwaggerlessResource_getPetByName_get",
         "parameters" : [ {
-          "name" : "name",
+          "name" : "petId",
           "in" : "path",
           "required" : true,
-          "type" : "string"
+          "type" : "string",
+          "pattern" : "[0-9]"
         } ],
         "responses" : {
           "200" : {
