@@ -1,8 +1,10 @@
 package com.github.kongchen.swagger.docgen.nginx;
 
+import com.github.kongchen.swagger.docgen.mavenplugin.Exclude;
 import com.github.kongchen.swagger.docgen.mavenplugin.NginxConfig;
 import com.github.kongchen.swagger.docgen.mavenplugin.NginxRewrite;
 import com.github.kongchen.swagger.docgen.mavenplugin.NginxTag;
+import com.github.kongchen.swagger.docgen.mavenplugin.UrlMatchGroup;
 import com.github.kongchen.swagger.docgen.reader.JaxrsReader;
 import com.github.odiszapc.nginxparser.NgxConfig;
 import io.swagger.models.Operation;
@@ -15,12 +17,15 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Path;
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class NginxJaxrsReader extends JaxrsReader {
 
@@ -43,7 +48,7 @@ public class NginxJaxrsReader extends JaxrsReader {
 
     private final List<NginxRewrite> additionalRewrites;
 
-    private final List<NginxTag> tags;
+    private final List<UrlMatchGroup> tags;
 
     private final List<UrlTag> urlTags;
 
@@ -83,18 +88,22 @@ public class NginxJaxrsReader extends JaxrsReader {
         };
     }
 
-    private static List<UrlTag> createUrlTags(List<NginxTag> tags) {
-        List<UrlTag> urlTags = new ArrayList<>();
-        if (tags != null) {
-            for (NginxTag tag : tags) {
-                if (tag.getUrls() != null) {
-                    for (String url : tag.getUrls()) {
-                        urlTags.add(new UrlTag(Pattern.compile(url), tag.getName()));
-                    }
-                }
-            }
-        }
-        return urlTags;
+    private static List<UrlTag> createUrlTags(List<UrlMatchGroup> tags) {
+        return Optional.ofNullable(tags).map(Collection::stream).map(stream ->
+                stream.flatMap(tag -> Optional.ofNullable(tag.getUrls()).map(Collection::stream).map(urls ->
+                        urls.filter(Objects::nonNull).map(url -> {
+                            String name;
+                            if (tag instanceof NginxTag) {
+                                name = ((NginxTag) tag).getName();
+                            } else if (tag instanceof Exclude) {
+                                name = null;
+                            } else {
+                                throw new IllegalArgumentException("Unknown tag group type: " + tag.getClass());
+                            }
+                            return new UrlTag(Pattern.compile(url), name);
+                        }))
+                        .orElseGet(Stream::empty)).collect(Collectors.toList()))
+                .orElseGet(Collections::emptyList);
     }
 
     @Override
@@ -105,16 +114,23 @@ public class NginxJaxrsReader extends JaxrsReader {
 
         super.read(classes);
         if (tags != null) {
-            tags.stream().map(NginxTag::getName)
+            tags.stream()
+                    .filter(NginxTag.class::isInstance)
+                    .map(NginxTag.class::cast)
+                    .map(NginxTag::getName)
                     .filter(name -> swagger.getTag(name) == null)
                     .forEach(name -> swagger.addTag(new Tag().name(name)));
         }
     }
 
     @Override
-    protected void updatePath(OperationContext<Class<?>> op) {
-        op.path = revertPath(op.path, op.httpMethod, op.operation);
-        super.updatePath(op);
+    protected io.swagger.models.Path updatePath(OperationContext<Class<?>> op) {
+        String path = revertPath(op.path, op.httpMethod, op.operation);
+        if (path == null) {
+            return null;
+        }
+        op.path = path;
+        return super.updatePath(op);
     }
 
     private String revertPath(String operationPath, String httpMethod, Operation operation) {
@@ -136,6 +152,12 @@ public class NginxJaxrsReader extends JaxrsReader {
             if (urlTags != null) {
                 for (UrlTag tag : urlTags) {
                     if (tag.url.matcher(revertedPath).matches()) {
+                        if (tag.name == null) {
+                            if (LOGGER.isDebugEnabled()) {
+                                LOGGER.debug("Exclude matched URL {}", tag.url.pattern());
+                            }
+                            return null;
+                        }
                         if (LOGGER.isInfoEnabled()) {
                             LOGGER.info("Set tag {} by matched URL {}", tag.name, tag.url.pattern());
                         }

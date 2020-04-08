@@ -202,7 +202,10 @@ public class JaxrsReader extends AbstractReader<Class<?>> {
             }
             updateTagsForOperation(op);
             updateOperation(op);
-            updatePath(op);
+            io.swagger.models.Path path = updatePath(op);
+            if (path == null) {
+                return;
+            }
             validateOperation(op);
         }
         updateTagDescriptions();

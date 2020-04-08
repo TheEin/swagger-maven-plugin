@@ -11,6 +11,7 @@ import io.swagger.annotations.AuthorizationScope;
 import io.swagger.converter.ModelConverters;
 import io.swagger.models.Model;
 import io.swagger.models.Operation;
+import io.swagger.models.Path;
 import io.swagger.models.Response;
 import io.swagger.models.SecurityRequirement;
 import io.swagger.models.Swagger;
@@ -151,7 +152,10 @@ public class SpringMvcApiReader extends AbstractReader<SpringResource> {
 
         updateTagsForOperation(op);
         updateOperation(op);
-        updatePath(op);
+        Path path = updatePath(op);
+        if (path == null) {
+            return;
+        }
         validateOperation(op);
     }
 

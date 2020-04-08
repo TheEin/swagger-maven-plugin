@@ -30,7 +30,7 @@ public class NginxConfig implements Cloneable {
     private List<NginxRewrite> additionalRewrites;
 
     @Parameter
-    private List<NginxTag> tags;
+    private List<UrlMatchGroup> tags;
 
     /**
      * Templating properties
@@ -89,11 +89,11 @@ public class NginxConfig implements Cloneable {
         this.additionalRewrites = additionalRewrites;
     }
 
-    public List<NginxTag> getTags() {
+    public List<UrlMatchGroup> getTags() {
         return tags;
     }
 
-    public void setTags(List<NginxTag> tags) {
+    public void setTags(List<UrlMatchGroup> tags) {
         this.tags = tags;
     }
 

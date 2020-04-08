@@ -268,7 +268,7 @@ public abstract class AbstractReader<R> extends ClassSwaggerReader {
         return responseHeaders;
     }
 
-    protected void updatePath(OperationContext<R> op) {
+    protected Path updatePath(OperationContext<R> op) {
         try {
             Path path = swagger.getPath(op.path);
             if (path == null) {
@@ -276,6 +276,7 @@ public abstract class AbstractReader<R> extends ClassSwaggerReader {
                 swagger.path(op.path, path);
             }
             SwaggerUtils.setPathOperation(path, op.httpMethod, op.operation);
+            return path;
         } catch (RuntimeException e) {
             throw new RuntimeException("Failed to update path: " + op.path, e);
         }
